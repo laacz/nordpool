@@ -8,7 +8,7 @@ After each update it generates static HTML and CSV files with the latest data.
 go build
 ```
 
-Daily usage pattern (essentially - what [update.sh] does)
+Daily usage pattern (essentially - what [update.sh](update.sh) does)
 
 ```bash
 # updates the database by fetching latest 7 days of data

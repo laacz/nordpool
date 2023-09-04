@@ -1,4 +1,6 @@
 <!doctype html>
+<!--suppress HtmlUnknownTarget -->
+<!--suppress CssUnusedSymbol -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -10,7 +12,6 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fira+Sans:wght@100;400;700&display=swap" rel="stylesheet">
 
-    <!--suppress CssUnusedSymbol -->
     <style>
 
         body {
@@ -117,13 +118,13 @@
                 <span class="help">
                     {{.Today.Date.Format "02. "}}{{index .Months .Today.Date.Month}}
                 </span>
-                <br/><small>Vidēji <span>{{ffformat .Today.Avg}}</span></small>
+                <br/><small>Vidēji <span>{{fformat .Today.Avg}}</span></small>
             </th>
             <th>Rīt
                 <span class="help">
                     {{.Tomorrow.Date.Format "02. "}}{{index .Months .Today.Date.Month}}
                 </span>
-                <br/><small>Vidēji <span>{{ffformat .Tomorrow.Avg}}</span></small>
+                <br/><small>Vidēji <span>{{fformat .Tomorrow.Avg}}</span></small>
             </th>
         </tr>
         </thead>
@@ -131,17 +132,17 @@
         {{ $today := .Today }}
         {{ $tomorrow := .Tomorrow }}
         {{ range .Hours }}
-        <tr data-hours="{{ . }}">
-            <th>{{lpad .}}-{{lpad (inc .)}}</th>
-            <td class="price"
-                style="background-color: {{ $today.HourtlyPriceAsColor . }}">
-                {{fformat ($today.HourlyPrice .)}}
-            </td>
-            <td class="price"
-                style="background-color: {{ $tomorrow.HourtlyPriceAsColor . }}">
-                {{fformat ($tomorrow.HourlyPrice .)}}
-            </td>
-        </tr>
+            <tr data-hours="{{ . }}">
+                <th>{{lpad .}}-{{lpad (inc .)}}</th>
+                <td class="price"
+                    style="background-color: {{ $today.HourtlyPriceAsColor . }}">
+                    {{fptrformat ($today.HourlyPrice .)}}
+                </td>
+                <td class="price"
+                    style="background-color: {{ $tomorrow.HourtlyPriceAsColor . }}">
+                    {{fptrformat ($tomorrow.HourlyPrice .)}}
+                </td>
+            </tr>
         {{ end }}
         </tbody>
     </table>
@@ -156,7 +157,7 @@
             Nordpool day-ahead stundas spotu
             cenas, LV. Krāsa atspoguļo cenu sāļumu konkrētajā dienā, nevis visā tabulā. Attēlotais ir Latvijas laiks.
             Dati pieejami arī <a href="nordpool.csv">kā parasts CSV</a> un <a href="nordpool-excel.csv">kā Excel'im
-            piemērots CSV</a>.
+                piemērots CSV</a>.
         </p>
     </footer>
 

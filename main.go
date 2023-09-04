@@ -66,6 +66,7 @@ func main() {
 
 }
 
+// writeCsv writes the data to stdout in CSV format, using the specified field separator
 func writeCsv(db *sql.DB, separator string) {
 	res, err := db.Query("SELECT ts_start, ts_end, value FROM spot_prices  order by ts_start desc")
 	if err != nil {
@@ -139,8 +140,7 @@ func (n *nordpoolData) Convert() []SpotPrice {
 			}
 			startTime := parseIntoUTC(col.Name, startHour)
 			endTime := parseIntoUTC(col.Name, startHour).Add(time.Hour)
-			//fmt.Printf("%+v\n", row)
-			//os.Exit(1)
+
 			ret = append(ret, SpotPrice{
 				StartTime: startTime,
 				EndTime:   endTime,
@@ -152,12 +152,23 @@ func (n *nordpoolData) Convert() []SpotPrice {
 	return ret
 }
 
+// SpotPrice is a single spot price
 type SpotPrice struct {
 	StartTime time.Time
 	EndTime   time.Time
 	Price     float64
 }
 
+// Store stores a SpotPrice in the database, ignoring existing entries
+func (prices *SpotPrice) Store(db *sql.DB) error {
+	_, err := db.Exec("INSERT OR IGNORE INTO spot_prices (ts_start, ts_end, value) VALUES (?, ?, ?)", prices.StartTime, prices.EndTime, prices.Price)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// SpotDay represents a single day of spot prices
 type SpotDay struct {
 	Date   time.Time
 	Prices []SpotPrice
@@ -166,6 +177,7 @@ type SpotDay struct {
 	Avg    float64
 }
 
+// UpdateAggregates updates the aggregate fields of a SpotDay
 func (sd *SpotDay) UpdateAggregates() {
 	sd.Min = math.MaxFloat64
 	sd.Max = -math.MaxFloat64
@@ -180,10 +192,10 @@ func (sd *SpotDay) UpdateAggregates() {
 		sum += price.Price
 	}
 	sd.Avg = sum / float64(len(sd.Prices))
-	//fmt.Printf("D: avg: %f, max: %f, min: %f\n", sd.Avg, sd.Max, sd.Min)
 }
 
-func (sd SpotDay) HourlyPrice(hour int) *float64 {
+// HourlyPrice returns the hourly price for the specified hour, or nil if no price is available
+func (sd *SpotDay) HourlyPrice(hour int) *float64 {
 	for _, price := range sd.Prices {
 		if price.StartTime.Hour() == hour {
 			return &price.Price
@@ -193,7 +205,8 @@ func (sd SpotDay) HourlyPrice(hour int) *float64 {
 	return nil
 }
 
-func (sd SpotDay) HourtlyPriceAsColor(hour int) string {
+// HourtlyPriceAsColor returns the hourly price as a CSS color shade
+func (sd *SpotDay) HourtlyPriceAsColor(hour int) string {
 	price := sd.HourlyPrice(hour)
 
 	if price == nil {
@@ -201,17 +214,12 @@ func (sd SpotDay) HourtlyPriceAsColor(hour int) string {
 	}
 
 	fmt.Println()
-	//sd.UpdateAggregates()
-	//fmt.Printf("D: max=%f, min=%f\n", sd.Max, sd.Min)
 	var pct float64
 	if (sd.Max - sd.Min) == 0 {
 		pct = 0
 	} else {
 		pct = (*price - sd.Min) / (sd.Max - sd.Min)
 	}
-
-	//fmt.Printf("D: pct: %f\n", pct)
-	//fmt.Printf("D: price: %f\n", *price)
 
 	percentColors := []struct {
 		Pct   float64
@@ -228,8 +236,6 @@ func (sd SpotDay) HourtlyPriceAsColor(hour int) string {
 		}
 	}
 
-	//fmt.Printf("D: i: %d\n", i)
-
 	lower := percentColors[i-1]
 	upper := percentColors[i]
 	rng := upper.Pct - lower.Pct
@@ -241,15 +247,6 @@ func (sd SpotDay) HourtlyPriceAsColor(hour int) string {
 	b := int(math.Floor(float64(lower.Color[2])*pctLower + float64(upper.Color[2])*pctUpper))
 
 	return fmt.Sprintf("rgb(%d,%d,%d)", r, g, b)
-}
-
-// Store stores a SpotPrice in the database, ignoring existing entries
-func (prices *SpotPrice) Store(db *sql.DB) error {
-	_, err := db.Exec("INSERT OR IGNORE INTO spot_prices (ts_start, ts_end, value) VALUES (?, ?, ?)", prices.StartTime, prices.EndTime, prices.Price)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 // parseIntoUTC parses a date and hour into a UTC time.Time from CET/CEST time
@@ -363,29 +360,39 @@ func latestData(db *sql.DB) (*SpotDay, *SpotDay, error) {
 	}
 	today.UpdateAggregates()
 	tomorrow.UpdateAggregates()
-	//fmt.Printf("D: today: %s, tomorrow: %s\n", today.Date, tomorrow.Date)
-	//fmt.Printf("D: D avg: %f, max: %f, min: %f\n", today.Avg, today.Max, today.Min)
 
 	return today, tomorrow, nil
 }
 
-//go:embed template.html
+//go:embed template.gohtml
 var html string
 
+// HtmlData is the data passed to the HTML template
+type HtmlData struct {
+	Today    *SpotDay
+	Tomorrow *SpotDay
+	Months   []string
+	Hours    []int
+}
+
+// fformat formats a float64 to a string with 2 decimals and adds a span with the extra decimals
+func fformat(f float64) string {
+	str := fmt.Sprintf("%.4f", f)
+	pointPos := strings.Index(str, ".")
+	return str[0:pointPos+3] + "<span class=\"extra-decimals\">" + str[pointPos+3:] + "</span>"
+}
+
+// writeHtml writes the HTML to stdout
 func writeHtml(today, tomorrow *SpotDay) {
 	funcs := template.FuncMap{
-		"ffformat": func(f float64) string {
-			str := fmt.Sprintf("%.4f", f)
-			pointPos := strings.Index(str, ".")
-			return str[0:pointPos+3] + "<span class=\"extra-decimals\">" + str[pointPos+3:] + "</span>"
+		"fformat": func(f float64) string {
+			return fformat(f)
 		},
-		"fformat": func(f *float64) string {
+		"fptrformat": func(f *float64) string {
 			if f == nil {
 				return "-"
 			}
-			str := fmt.Sprintf("%.4f", *f)
-			pointPos := strings.Index(str, ".")
-			return str[0:pointPos+3] + "<span class=\"extra-decimals\">" + str[pointPos+3:] + "</span>"
+			return fformat(*f)
 		},
 		"inc": func(i int) int {
 			ret := i + 1
@@ -405,14 +412,9 @@ func writeHtml(today, tomorrow *SpotDay) {
 	if err != nil {
 		log.Fatalf("Error parsing template: %s", err)
 	}
-	err = tmpl.Execute(os.Stdout, struct {
-		Today    SpotDay
-		Tomorrow SpotDay
-		Months   []string
-		Hours    []int
-	}{
-		Today:    *today,
-		Tomorrow: *tomorrow,
+	err = tmpl.Execute(os.Stdout, HtmlData{
+		Today:    today,
+		Tomorrow: tomorrow,
 		Months: []string{
 			"",
 			"jan",

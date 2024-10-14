@@ -25,7 +25,7 @@ mv public/nordpool-excel.csv.new public/nordpool-excel.csv
 
 Cron configuration:
 
-```
+```cronexp
 */15 11,12,13,14,15,16,17,18 * * * cd /var/www/nordpool.didnt.work && ./import.sh
 ```
 

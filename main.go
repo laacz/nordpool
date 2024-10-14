@@ -46,7 +46,7 @@ func main() {
 				log.Fatalf("Error fetching data: %s", err)
 			}
 
-			var nordpool nordpoolData
+			var nordpool nordpoolData2
 			err = json.Unmarshal(data, &nordpool)
 			if err != nil {
 				log.Fatalf("Error parsing JSON: %s", err)
@@ -66,7 +66,6 @@ func main() {
 
 }
 
-// writeCsv writes the data to stdout in CSV format, using the specified field separator
 func writeCsv(db *sql.DB, separator string) {
 	res, err := db.Query("SELECT ts_start, ts_end, value FROM spot_prices  order by ts_start desc")
 	if err != nil {
@@ -106,69 +105,46 @@ func writeCsv(db *sql.DB, separator string) {
 	}
 }
 
-// nordpoolData is a specific part of the JSON structure returned by the Nordpool API
-type nordpoolData struct {
-	Data struct {
-		Rows []struct {
-			Columns []struct {
-				Name  string `json:"Name"`
-				Value string `json:"Value"`
-			} `json:"Columns"`
-			StartTime  string `json:"StartTime"`
-			EndTime    string `json:"EndTime"`
-			IsExtraRow bool   `json:"IsExtraRow"`
-		} `json:"Rows"`
-	} `json:"data"`
+// nordpoolData is a specific part of the JSON structure returned by the Nordpool API (new version)
+type nordpoolData2 struct {
+	DeliveryDateCet  string `json:"deliveryDateCET"`
+	Version          int    `json:"version"`
+	UpdatedAt        string `json:"updatedAt"`
+	Market           string `json:"market"`
+	MultiAreaEntries []struct {
+		DeliveryStart string             `json:"deliveryStart"`
+		DeliveryEnd   string             `json:"deliveryEnd"`
+		EntryPerArea  map[string]float64 `json:"entryPerArea"`
+	} `json:"multiAreaEntries"`
 }
 
-// Convert converts the nordpoolData into a slice of SpotPrice
-func (n *nordpoolData) Convert() []SpotPrice {
+func (n *nordpoolData2) Convert() []SpotPrice {
 	ret := make([]SpotPrice, 0)
-	for _, row := range n.Data.Rows {
-		if row.IsExtraRow {
-			continue
+	for _, entry := range n.MultiAreaEntries {
+		price := entry.EntryPerArea["LV"]
+		startTime, err := time.Parse("2006-01-02T15:04:05Z", entry.DeliveryStart)
+		if err != nil {
+			log.Panicf("Error parsing start time: %s", err)
 		}
-		for _, col := range row.Columns {
-			startHour := row.StartTime[11:13]
-
-			f := strings.Replace(col.Value, ",", ".", -1)
-			f = strings.Replace(f, " ", "", -1)
-			price, err := strconv.ParseFloat(f, 32)
-			if err != nil {
-				log.Printf("Error parsing price %+v: %s", price, err)
-				continue
-			}
-			startTime := parseIntoUTC(col.Name, startHour)
-			endTime := parseIntoUTC(col.Name, startHour).Add(time.Hour)
-
-			ret = append(ret, SpotPrice{
-				StartTime: startTime,
-				EndTime:   endTime,
-				Price:     price,
-			})
+		endTime, err := time.Parse("2006-01-02T15:04:05Z", entry.DeliveryEnd)
+		if err != nil {
+			log.Panicf("Error parsing end time: %s", err)
 		}
+		ret = append(ret, SpotPrice{
+			StartTime: startTime,
+			EndTime:   endTime,
+			Price:     float64(price) / 1000,
+		})
 	}
-
 	return ret
 }
 
-// SpotPrice is a single spot price
 type SpotPrice struct {
 	StartTime time.Time
 	EndTime   time.Time
 	Price     float64
 }
 
-// Store stores a SpotPrice in the database, ignoring existing entries
-func (prices *SpotPrice) Store(db *sql.DB) error {
-	_, err := db.Exec("INSERT OR IGNORE INTO spot_prices (ts_start, ts_end, value) VALUES (?, ?, ?)", prices.StartTime, prices.EndTime, prices.Price)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-// SpotDay represents a single day of spot prices
 type SpotDay struct {
 	Date   time.Time
 	Prices []SpotPrice
@@ -177,7 +153,6 @@ type SpotDay struct {
 	Avg    float64
 }
 
-// UpdateAggregates updates the aggregate fields of a SpotDay
 func (sd *SpotDay) UpdateAggregates() {
 	sd.Min = math.MaxFloat64
 	sd.Max = -math.MaxFloat64
@@ -192,21 +167,31 @@ func (sd *SpotDay) UpdateAggregates() {
 		sum += price.Price
 	}
 	sd.Avg = sum / float64(len(sd.Prices))
+	//fmt.Printf("D: avg: %f, max: %f, min: %f\n", sd.Avg, sd.Max, sd.Min)
 }
 
-// HourlyPrice returns the hourly price for the specified hour, or nil if no price is available
-func (sd *SpotDay) HourlyPrice(hour int) *float64 {
+func (sd SpotDay) HourlyPrice(hour int) *float64 {
 	for _, price := range sd.Prices {
 		if price.StartTime.Hour() == hour {
-			return &price.Price
+			p := price.Price
+			//p := price.Price
+			return &p
 		}
 	}
 
 	return nil
 }
 
-// HourtlyPriceAsColor returns the hourly price as a CSS color shade
-func (sd *SpotDay) HourtlyPriceAsColor(hour int) string {
+func (sd SpotDay) HourlyPriceVat(hour int) *float64 {
+	p := sd.HourlyPrice(hour)
+	if p != nil {
+		ret := *p * 1.21
+		return &ret
+	}
+	return p
+}
+
+func (sd SpotDay) HourtlyPriceAsColor(hour int) string {
 	price := sd.HourlyPrice(hour)
 
 	if price == nil {
@@ -236,6 +221,8 @@ func (sd *SpotDay) HourtlyPriceAsColor(hour int) string {
 		}
 	}
 
+	//fmt.Printf("D: i: %d\n", i)
+
 	lower := percentColors[i-1]
 	upper := percentColors[i]
 	rng := upper.Pct - lower.Pct
@@ -249,21 +236,13 @@ func (sd *SpotDay) HourtlyPriceAsColor(hour int) string {
 	return fmt.Sprintf("rgb(%d,%d,%d)", r, g, b)
 }
 
-// parseIntoUTC parses a date and hour into a UTC time.Time from CET/CEST time
-func parseIntoUTC(date, hour string) time.Time {
-	d, err := time.Parse("02-01-2006", date[0:10])
+// Store stores a SpotPrice in the database, ignoring existing entries
+func (prices *SpotPrice) Store(db *sql.DB) error {
+	_, err := db.Exec("INSERT OR IGNORE INTO spot_prices (ts_start, ts_end, value) VALUES (?, ?, ?)", prices.StartTime, prices.EndTime, prices.Price)
 	if err != nil {
-		log.Panicf("Error parsing date %s: %s", date, err)
+		return err
 	}
-	loc, err := time.LoadLocation("Europe/Oslo")
-	if err != nil {
-		log.Panicf("Error loading location: %s", err)
-	}
-	ret, err := time.ParseInLocation("2006-01-02 15", fmt.Sprintf("%s %s", d.Format("2006-01-02"), hour), loc)
-	if err != nil {
-		log.Panicf("Error parsing date: %s", err)
-	}
-	return ret.UTC()
+	return nil
 }
 
 // inferEndDate infers the end date from the command line arguments, or defaults to tomorrow
@@ -283,7 +262,9 @@ func inferEndDate() (*time.Time, error) {
 
 // fetch fetches the data from the Nordpool API
 func fetch(endDate *time.Time) ([]byte, error) {
-	url := fmt.Sprintf("https://www.nordpoolgroup.com/api/marketdata/page/59?currency=,EUR,EUR,EUR&endDate=%s", endDate.Format("02-01-2006"))
+	// https://dataportal-api.nordpoolgroup.com/api/DayAheadPrices?date=2024-10-15&market=DayAhead&deliveryArea=LV&currency=EUR
+	// url := fmt.Sprintf("https://www.nordpoolgroup.com/api/marketdata/page/59?currency=,EUR,EUR,EUR&endDate=%s", endDate.Format("02-01-2006"))
+	url := fmt.Sprintf("https://dataportal-api.nordpoolgroup.com/api/DayAheadPrices?date=%s&market=DayAhead&deliveryArea=LV&currency=EUR", endDate.Format("2006-01-02"))
 
 	c := &http.Client{}
 	req, err := http.NewRequest("GET", url, nil)
@@ -360,39 +341,29 @@ func latestData(db *sql.DB) (*SpotDay, *SpotDay, error) {
 	}
 	today.UpdateAggregates()
 	tomorrow.UpdateAggregates()
+	//fmt.Printf("D: today: %s, tomorrow: %s\n", today.Date, tomorrow.Date)
+	//fmt.Printf("D: D avg: %f, max: %f, min: %f\n", today.Avg, today.Max, today.Min)
 
 	return today, tomorrow, nil
 }
 
-//go:embed template.gohtml
+//go:embed template.html
 var html string
 
-// HtmlData is the data passed to the HTML template
-type HtmlData struct {
-	Today    *SpotDay
-	Tomorrow *SpotDay
-	Months   []string
-	Hours    []int
-}
-
-// fformat formats a float64 to a string with 2 decimals and adds a span with the extra decimals
-func fformat(f float64) string {
-	str := fmt.Sprintf("%.4f", f)
-	pointPos := strings.Index(str, ".")
-	return str[0:pointPos+3] + "<span class=\"extra-decimals\">" + str[pointPos+3:] + "</span>"
-}
-
-// writeHtml writes the HTML to stdout
 func writeHtml(today, tomorrow *SpotDay) {
 	funcs := template.FuncMap{
-		"fformat": func(f float64) string {
-			return fformat(f)
+		"ffformat": func(f float64) string {
+			str := fmt.Sprintf("%.4f", f)
+			pointPos := strings.Index(str, ".")
+			return str[0:pointPos+3] + "<span class=\"extra-decimals\">" + str[pointPos+3:] + "</span>"
 		},
-		"fptrformat": func(f *float64) string {
+		"fformat": func(f *float64) string {
 			if f == nil {
 				return "-"
 			}
-			return fformat(*f)
+			str := fmt.Sprintf("%.4f", *f)
+			pointPos := strings.Index(str, ".")
+			return str[0:pointPos+3] + "<span class=\"extra-decimals\">" + str[pointPos+3:] + "</span>"
 		},
 		"inc": func(i int) int {
 			ret := i + 1
@@ -412,9 +383,14 @@ func writeHtml(today, tomorrow *SpotDay) {
 	if err != nil {
 		log.Fatalf("Error parsing template: %s", err)
 	}
-	err = tmpl.Execute(os.Stdout, HtmlData{
-		Today:    today,
-		Tomorrow: tomorrow,
+	err = tmpl.Execute(os.Stdout, struct {
+		Today    SpotDay
+		Tomorrow SpotDay
+		Months   []string
+		Hours    []int
+	}{
+		Today:    *today,
+		Tomorrow: *tomorrow,
 		Months: []string{
 			"",
 			"jan",

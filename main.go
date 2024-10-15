@@ -137,7 +137,7 @@ func (n *NordpoolData) Convert() []SpotPrice {
 		ret = append(ret, SpotPrice{
 			StartTime: startTime,
 			EndTime:   endTime,
-			Price:     float64(price) / 1000,
+			Price:     price,
 		})
 	}
 	return ret

@@ -46,7 +46,11 @@ func main() {
 				log.Fatalf("Error fetching data: %s", err)
 			}
 
-			var nordpool nordpoolData2
+			if len(data) == 0 {
+				return
+			}
+
+			var nordpool NordpoolData
 			err = json.Unmarshal(data, &nordpool)
 			if err != nil {
 				log.Fatalf("Error parsing JSON: %s", err)
@@ -105,8 +109,8 @@ func writeCsv(db *sql.DB, separator string) {
 	}
 }
 
-// nordpoolData is a specific part of the JSON structure returned by the Nordpool API (new version)
-type nordpoolData2 struct {
+// NordpoolData is a specific part of the JSON structure returned by the Nordpool API (new version)
+type NordpoolData struct {
 	DeliveryDateCet  string `json:"deliveryDateCET"`
 	Version          int    `json:"version"`
 	UpdatedAt        string `json:"updatedAt"`
@@ -118,7 +122,7 @@ type nordpoolData2 struct {
 	} `json:"multiAreaEntries"`
 }
 
-func (n *nordpoolData2) Convert() []SpotPrice {
+func (n *NordpoolData) Convert() []SpotPrice {
 	ret := make([]SpotPrice, 0)
 	for _, entry := range n.MultiAreaEntries {
 		price := entry.EntryPerArea["LV"]
@@ -279,6 +283,10 @@ func fetch(endDate *time.Time) ([]byte, error) {
 	resp, err := c.Do(req)
 	if err != nil {
 		return nil, err
+	}
+
+	if resp.StatusCode > 299 {
+		return nil, fmt.Errorf("HTTP error: %d", resp.StatusCode)
 	}
 
 	defer func(Body io.ReadCloser) {

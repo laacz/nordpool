@@ -71,21 +71,22 @@ func main() {
 }
 
 func writeCsv(db *sql.DB, separator string) {
-	res, err := db.Query("SELECT ts_start, ts_end, value FROM spot_prices  order by ts_start desc")
+	res, err := db.Query("SELECT ts_start, ts_end, value, delivery_area FROM spot_prices  order by ts_start desc")
 	if err != nil {
 		log.Fatalf("Error querying database: %s", err)
 	}
 	defer func(rows *sql.Rows) {
-		_ = rows.Close()
+			_ = rows.Close()
 	}(res)
 	loc, _ := time.LoadLocation("Europe/Riga")
-	fmt.Printf(strings.Replace("ts_start|ts_end|price\n", "|", separator, -1))
+	fmt.Printf(strings.Replace("ts_start|ts_end|price|delivery_area\n", "|", separator, -1))
 	for res.Next() {
 		var price SpotPrice
 		var tsStart string
 		var tsEnd string
+		var deliveryArea string
 
-		err = res.Scan(&tsStart, &tsEnd, &price.Price)
+		err = res.Scan(&tsStart, &tsEnd, &price.Price, &deliveryArea)
 		if err != nil {
 			log.Fatalf("Error scanning row: %s", err)
 		}
@@ -101,10 +102,11 @@ func writeCsv(db *sql.DB, separator string) {
 			log.Fatalf("Error parsing end time: %s", err)
 		}
 
-		fmt.Printf(strings.Replace("%s|%s|%f\n", "|", separator, -1),
+		fmt.Printf(strings.Replace("%s|%s|%f|%s\n", "|", separator, -1),
 			price.StartTime.In(loc).Format("2006-01-02 15:04:05"),
 			price.EndTime.In(loc).Format("2006-01-02 15:04:05"),
 			price.Price,
+			deliveryArea,
 		)
 	}
 }
@@ -125,28 +127,31 @@ type NordpoolData struct {
 func (n *NordpoolData) Convert() []SpotPrice {
 	ret := make([]SpotPrice, 0)
 	for _, entry := range n.MultiAreaEntries {
-		price := entry.EntryPerArea["LV"]
-		startTime, err := time.Parse("2006-01-02T15:04:05Z", entry.DeliveryStart)
-		if err != nil {
-			log.Panicf("Error parsing start time: %s", err)
+		for area, price := range entry.EntryPerArea {
+			startTime, err := time.Parse("2006-01-02T15:04:05Z", entry.DeliveryStart)
+			if err != nil {
+				log.Panicf("Error parsing start time: %s", err)
+			}
+			endTime, err := time.Parse("2006-01-02T15:04:05Z", entry.DeliveryEnd)
+			if err != nil {
+				log.Panicf("Error parsing end time: %s", err)
+			}
+			ret = append(ret, SpotPrice{
+				StartTime:    startTime,
+				EndTime:      endTime,
+				Price:        price,
+				DeliveryArea: area,
+			})
 		}
-		endTime, err := time.Parse("2006-01-02T15:04:05Z", entry.DeliveryEnd)
-		if err != nil {
-			log.Panicf("Error parsing end time: %s", err)
-		}
-		ret = append(ret, SpotPrice{
-			StartTime: startTime,
-			EndTime:   endTime,
-			Price:     price,
-		})
 	}
 	return ret
 }
 
 type SpotPrice struct {
-	StartTime time.Time
-	EndTime   time.Time
-	Price     float64
+	StartTime    time.Time
+	EndTime      time.Time
+	Price        float64
+	DeliveryArea string
 }
 
 type SpotDay struct {
@@ -242,7 +247,7 @@ func (sd SpotDay) HourtlyPriceAsColor(hour int) string {
 
 // Store stores a SpotPrice in the database, ignoring existing entries
 func (prices *SpotPrice) Store(db *sql.DB) error {
-	_, err := db.Exec("INSERT OR IGNORE INTO spot_prices (ts_start, ts_end, value) VALUES (?, ?, ?)", prices.StartTime, prices.EndTime, prices.Price)
+	_, err := db.Exec("INSERT OR IGNORE INTO spot_prices (ts_start, ts_end, value, delivery_area) VALUES (?, ?, ?, ?)", prices.StartTime, prices.EndTime, prices.Price, prices.DeliveryArea)
 	if err != nil {
 		return err
 	}
@@ -268,7 +273,7 @@ func inferEndDate() (*time.Time, error) {
 func fetch(endDate *time.Time) ([]byte, error) {
 	// https://dataportal-api.nordpoolgroup.com/api/DayAheadPrices?date=2024-10-15&market=DayAhead&deliveryArea=LV&currency=EUR
 	// url := fmt.Sprintf("https://www.nordpoolgroup.com/api/marketdata/page/59?currency=,EUR,EUR,EUR&endDate=%s", endDate.Format("02-01-2006"))
-	url := fmt.Sprintf("https://dataportal-api.nordpoolgroup.com/api/DayAheadPrices?date=%s&market=DayAhead&deliveryArea=LV&currency=EUR", endDate.Format("2006-01-02"))
+	url := fmt.Sprintf("https://dataportal-api.nordpoolgroup.com/api/DayAheadPrices?date=%s&market=DayAhead&deliveryArea=LV,LT,EE&currency=EUR", endDate.Format("2006-01-02"))
 
 	c := &http.Client{}
 	req, err := http.NewRequest("GET", url, nil)
@@ -298,7 +303,7 @@ func fetch(endDate *time.Time) ([]byte, error) {
 
 // latestData returns data for today and tomorrow from the database
 func latestData(db *sql.DB) (*SpotDay, *SpotDay, error) {
-	res, err := db.Query("SELECT ts_start, ts_end, value FROM spot_prices WHERE ts_start >= date('now', '-1 days') AND ts_start < date('now', '+2 days') order by ts_start")
+	res, err := db.Query("SELECT ts_start, ts_end, value, delivery_area FROM spot_prices WHERE ts_start >= date('now', '-1 days') AND ts_start < date('now', '+2 days') order by ts_start")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -317,8 +322,9 @@ func latestData(db *sql.DB) (*SpotDay, *SpotDay, error) {
 		var price SpotPrice
 		var tsStart string
 		var tsEnd string
+		var deliveryArea string
 
-		err = res.Scan(&tsStart, &tsEnd, &price.Price)
+		err = res.Scan(&tsStart, &tsEnd, &price.Price, &deliveryArea)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -333,7 +339,7 @@ func latestData(db *sql.DB) (*SpotDay, *SpotDay, error) {
 		price.EndTime, err = time.ParseInLocation("2006-01-02 15:04:05-07:00", tsEnd, utcLoc)
 		if err != nil {
 			panic(err)
-			return nil, nil, err
+			return nil, nil, err)
 		}
 
 		price.StartTime = price.StartTime.In(rigaLoc)

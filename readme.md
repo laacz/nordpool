@@ -1,6 +1,6 @@
-# Nordpool spot prices for Latvia
+# Nordpool spot prices for Latvia, Lithuania, and Estonia
 
-This repository contains a script that downloads Nordpool spot prices for Latvia and saves them in a sqlite3 database. After each update it generates static HTML and CSV files with the latest data.
+This repository contains a script that downloads Nordpool spot prices for Latvia, Lithuania, and Estonia and saves them in a sqlite3 database. After each update it generates static HTML and CSV files with the latest data.
 
 ```bash
 # build new binary as ./nordpool
@@ -20,10 +20,11 @@ Sqlite database schema:
 ```sql
 CREATE TABLE spot_prices
 (
-    ts_start   timestamp      not null,
-    ts_end     timesamp       not null,
-    value      decimal(10, 2) not null,
-    created_at timestamp default current_timestamp
+    ts_start      timestamp      not null,
+    ts_end        timestamp      not null,
+    value         decimal(10, 2) not null,
+    delivery_area varchar(2)     not null,
+    created_at    timestamp      default current_timestamp
 );
-CREATE UNIQUE INDEX index_ts ON spot_prices (ts_start, ts_end);
+CREATE UNIQUE INDEX index_ts ON spot_prices (ts_start, ts_end, delivery_area);
 ```

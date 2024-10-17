@@ -1,0 +1,9 @@
+CREATE TABLE spot_prices
+(
+    ts_start      timestamp      not null,
+    ts_end        timestamp      not null,
+    value         decimal(10, 2) not null,
+    delivery_area varchar(2)     not null,
+    created_at    timestamp      default current_timestamp
+);
+CREATE UNIQUE INDEX index_ts ON spot_prices (ts_start, ts_end, delivery_area);

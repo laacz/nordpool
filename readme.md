@@ -15,6 +15,14 @@ Cron configuration:
 */15 11,12,13,14,15,16,17,18 * * * cd /var/www/nordpool.didnt.work && ./import.sh
 ```
 
+Migration to multi-country support:
+
+```sql
+alter table spot_prices add column country varchar(2) not null default 'LV';
+drop index index_ts;
+create unique index index_ts on spot_prices (country, ts_start, ts_end);
+```
+
 Sqlite database schema:
 
 ```sql
@@ -27,3 +35,4 @@ CREATE TABLE spot_prices
 );
 CREATE UNIQUE INDEX index_ts ON spot_prices (ts_start, ts_end);
 ```
+

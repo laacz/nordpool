@@ -5,16 +5,15 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
-	_ "github.com/mattn/go-sqlite3"
 	"io"
 	"log"
 	"math"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
-	"text/template"
 	"time"
+
+	_ "github.com/mattn/go-sqlite3"
 )
 
 func main() {
@@ -24,16 +23,20 @@ func main() {
 	}
 
 	if len(os.Args) > 1 {
-		if os.Args[1] == "generate" {
-			today, tomorrow, err := latestData(db)
-			if err != nil {
-				log.Fatalf("Error fetching latest data: %s", err)
+		if os.Args[1] == "csv" {
+			country := "LV"
+			if len(os.Args) > 2 {
+				country = os.Args[2]
 			}
-			writeHtml(today, tomorrow)
-		} else if os.Args[1] == "csv" {
-			writeCsv(db, ",")
+
+			writeCsv(db, ",", country)
 		} else if os.Args[1] == "excel" {
-			writeCsv(db, ";")
+			country := "LV"
+			if len(os.Args) > 2 {
+				country = os.Args[2]
+			}
+
+			writeCsv(db, ";", country)
 		} else if os.Args[1] == "update" {
 
 			endDate, err := inferEndDate()
@@ -41,7 +44,17 @@ func main() {
 				log.Fatalf("Error parsing date: %s", err)
 			}
 
-			data, err := fetch(endDate)
+			retry := 0
+			var data []byte
+			for retry < 5 {
+				data, err = fetch(endDate)
+				if err == nil {
+					break
+				}
+				retry++
+				log.Printf("Error fetching data, retrying %d: %s", retry, err)
+				time.Sleep(time.Second * 5)
+			}
 			if err != nil {
 				log.Fatalf("Error fetching data: %s", err)
 			}
@@ -56,22 +69,24 @@ func main() {
 				log.Fatalf("Error parsing JSON: %s", err)
 			}
 
-			prices := nordpool.Convert()
-			for _, price := range prices {
-				err = price.Store(db)
-				if err != nil {
-					log.Printf("Error storing price: %s", err)
+			for _, country := range []string{"LV", "LT", "EE"} {
+				prices := nordpool.Convert(country)
+				for _, price := range prices {
+					err = price.Store(db, country)
+					if err != nil {
+						log.Printf("Error storing price: %s", err)
+					}
 				}
 			}
 		}
 	} else {
-		fmt.Println("Usage: nordpool [generate|csv|excel|update] [date]")
+		fmt.Println("Usage: nordpool [csv|excel|update] [date]")
 	}
 
 }
 
-func writeCsv(db *sql.DB, separator string) {
-	res, err := db.Query("SELECT ts_start, ts_end, value FROM spot_prices  order by ts_start desc")
+func writeCsv(db *sql.DB, separator string, country string) {
+	res, err := db.Query("SELECT ts_start, ts_end, value FROM spot_prices WHERE country = ? order by ts_start desc", country)
 	if err != nil {
 		log.Fatalf("Error querying database: %s", err)
 	}
@@ -122,10 +137,11 @@ type NordpoolData struct {
 	} `json:"multiAreaEntries"`
 }
 
-func (n *NordpoolData) Convert() []SpotPrice {
+func (n *NordpoolData) Convert(country string) []SpotPrice {
 	ret := make([]SpotPrice, 0)
 	for _, entry := range n.MultiAreaEntries {
-		price := entry.EntryPerArea["LV"]
+		price := entry.EntryPerArea[country]
+
 		startTime, err := time.Parse("2006-01-02T15:04:05Z", entry.DeliveryStart)
 		if err != nil {
 			log.Panicf("Error parsing start time: %s", err)
@@ -241,8 +257,9 @@ func (sd SpotDay) HourtlyPriceAsColor(hour int) string {
 }
 
 // Store stores a SpotPrice in the database, ignoring existing entries
-func (prices *SpotPrice) Store(db *sql.DB) error {
-	_, err := db.Exec("INSERT OR IGNORE INTO spot_prices (ts_start, ts_end, value) VALUES (?, ?, ?)", prices.StartTime, prices.EndTime, prices.Price)
+func (price *SpotPrice) Store(db *sql.DB, country string) error {
+	fmt.Println(country, price)
+	_, err := db.Exec("INSERT OR IGNORE INTO spot_prices (ts_start, ts_end, value, country) VALUES (?, ?, ?, ?)", price.StartTime, price.EndTime, price.Price, country)
 	if err != nil {
 		return err
 	}
@@ -268,7 +285,23 @@ func inferEndDate() (*time.Time, error) {
 func fetch(endDate *time.Time) ([]byte, error) {
 	// https://dataportal-api.nordpoolgroup.com/api/DayAheadPrices?date=2024-10-15&market=DayAhead&deliveryArea=LV&currency=EUR
 	// url := fmt.Sprintf("https://www.nordpoolgroup.com/api/marketdata/page/59?currency=,EUR,EUR,EUR&endDate=%s", endDate.Format("02-01-2006"))
-	url := fmt.Sprintf("https://dataportal-api.nordpoolgroup.com/api/DayAheadPrices?date=%s&market=DayAhead&deliveryArea=LV&currency=EUR", endDate.Format("2006-01-02"))
+
+	// ```command
+	// curl 'https://dataportal-api.nordpoolgroup.com/api/DayAheadPrices?date=2025-04-01&market=DayAhead&deliveryArea=EE,LT,AT&currency=EUR' \
+	// -H 'accept: application/json, text/plain, */*' \
+	// -H 'accept-language: en,lv;q=0.9,en-GB;q=0.8' \
+	// -H 'origin: https://data.nordpoolgroup.com' \
+	// -H 'priority: u=1, i' \
+	// -H 'referer: https://data.nordpoolgroup.com/' \
+	// -H 'sec-ch-ua: "Google Chrome";v="135", "Not-A.Brand";v="8", "Chromium";v="135"' \
+	// -H 'sec-ch-ua-mobile: ?0' \
+	// -H 'sec-ch-ua-platform: "Windows"' \
+	// -H 'sec-fetch-dest: empty' \
+	// -H 'sec-fetch-mode: cors' \
+	// -H 'sec-fetch-site: same-site' \
+	// -H 'user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36'
+	// ```
+	url := fmt.Sprintf("https://dataportal-api.nordpoolgroup.com/api/DayAheadPrices?date=%s&market=DayAhead&deliveryArea=LV,EE,LT&currency=EUR", endDate.Format("2006-01-02"))
 
 	c := &http.Client{}
 	req, err := http.NewRequest("GET", url, nil)
@@ -277,7 +310,15 @@ func fetch(endDate *time.Time) ([]byte, error) {
 	}
 
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Accept-Language", "en,lv;q=0.9,en-GB;q=0.8")
+	req.Header.Set("Origin", "https://data.nordpoolgroup.com")
+	req.Header.Set("Priority", "u=1, i")
 	req.Header.Set("Referer", "https://www.nordpoolgroup.com/Market-data1/Dayahead/Area-Prices/ALL1/Hourly/")
+	req.Header.Set("Sec-CH-UA", `"Google Chrome";v="135", "Not-A.Brand";v="8", "Chromium";v="135"`)
+	req.Header.Set("Sec-CH-UA-Mobile", "?0")
+	req.Header.Set("Sec-CH-UA-Platform", `"Windows"`)
+	req.Header.Set("Sec-Fetch-Dest", "empty")
+	req.Header.Set("Sec-Fetch-Mode", "cors")
 	req.Header.Set("User-Agent", "Mozilla/5.0 (X11; Linux x86_64; rv:60.0) Gecko/20100101 Firefox/60.0")
 
 	resp, err := c.Do(req)
@@ -294,133 +335,4 @@ func fetch(endDate *time.Time) ([]byte, error) {
 	}(resp.Body)
 
 	return io.ReadAll(resp.Body)
-}
-
-// latestData returns data for today and tomorrow from the database
-func latestData(db *sql.DB) (*SpotDay, *SpotDay, error) {
-	res, err := db.Query("SELECT ts_start, ts_end, value FROM spot_prices WHERE ts_start >= date('now', '-1 days') AND ts_start < date('now', '+2 days') order by ts_start")
-	if err != nil {
-		return nil, nil, err
-	}
-	defer func(rows *sql.Rows) {
-		_ = rows.Close()
-	}(res)
-	today := &SpotDay{
-		Prices: make([]SpotPrice, 0),
-	}
-	tomorrow := &SpotDay{
-		Prices: make([]SpotPrice, 0),
-	}
-	utcLoc := time.Now().UTC().Location()
-	rigaLoc := time.Now().Location()
-	for res.Next() {
-		var price SpotPrice
-		var tsStart string
-		var tsEnd string
-
-		err = res.Scan(&tsStart, &tsEnd, &price.Price)
-		if err != nil {
-			return nil, nil, err
-		}
-		price.Price /= 1000
-
-		price.StartTime, err = time.ParseInLocation("2006-01-02T15:04:05Z", tsStart, utcLoc)
-		if err != nil {
-			panic(err)
-			return nil, nil, err
-		}
-
-		price.EndTime, err = time.ParseInLocation("2006-01-02 15:04:05-07:00", tsEnd, utcLoc)
-		if err != nil {
-			panic(err)
-			return nil, nil, err
-		}
-
-		price.StartTime = price.StartTime.In(rigaLoc)
-		price.EndTime = price.EndTime.In(rigaLoc)
-
-		if price.StartTime.Format("2006-01-02") == time.Now().Format("2006-01-02") {
-			today.Date = price.StartTime.Truncate(time.Hour * 24)
-			today.Prices = append(today.Prices, price)
-		} else if price.StartTime.Format("2006-01-02") == time.Now().Add(time.Hour*24).Format("2006-01-02") {
-			tomorrow.Date = price.StartTime.Truncate(time.Hour * 24)
-			tomorrow.Prices = append(tomorrow.Prices, price)
-		}
-	}
-	today.UpdateAggregates()
-	tomorrow.UpdateAggregates()
-	//fmt.Printf("D: today: %s, tomorrow: %s\n", today.Date, tomorrow.Date)
-	//fmt.Printf("D: D avg: %f, max: %f, min: %f\n", today.Avg, today.Max, today.Min)
-
-	return today, tomorrow, nil
-}
-
-//go:embed template.html
-var html string
-
-func writeHtml(today, tomorrow *SpotDay) {
-	funcs := template.FuncMap{
-		"ffformat": func(f float64) string {
-			str := fmt.Sprintf("%.4f", f)
-			pointPos := strings.Index(str, ".")
-			return str[0:pointPos+3] + "<span class=\"extra-decimals\">" + str[pointPos+3:] + "</span>"
-		},
-		"fformat": func(f *float64) string {
-			if f == nil {
-				return "-"
-			}
-			str := fmt.Sprintf("%.4f", *f)
-			pointPos := strings.Index(str, ".")
-			return str[0:pointPos+3] + "<span class=\"extra-decimals\">" + str[pointPos+3:] + "</span>"
-		},
-		"inc": func(i int) int {
-			ret := i + 1
-			if ret == 24 {
-				return 0
-			}
-			return ret
-		},
-		"lpad": func(i int) string {
-			if i < 10 {
-				return "0" + strconv.Itoa(i)
-			}
-			return strconv.Itoa(i)
-		},
-	}
-	tmpl, err := template.New("html").Funcs(funcs).Parse(html)
-	if err != nil {
-		log.Fatalf("Error parsing template: %s", err)
-	}
-	err = tmpl.Execute(os.Stdout, struct {
-		Today    SpotDay
-		Tomorrow SpotDay
-		Months   []string
-		Hours    []int
-	}{
-		Today:    *today,
-		Tomorrow: *tomorrow,
-		Months: []string{
-			"",
-			"jan",
-			"feb",
-			"mar",
-			"apr",
-			"mai",
-			"jūn",
-			"jūl",
-			"aug",
-			"sep",
-			"okt",
-			"nov",
-			"dec",
-		},
-		Hours: []int{
-			0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
-		},
-	})
-
-	if err != nil {
-		log.Fatalf("Error executing template: %s", err)
-	}
-
 }

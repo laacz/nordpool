@@ -1,4 +1,18 @@
 <?php
+require('functions.php');
+
+if (php_sapi_name() == 'cli-server') {
+    $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+    if ($uri !== '/' && file_exists(__DIR__ . $uri)) {
+        return false;
+    }
+}
+
+
+$path = $_SERVER['REQUEST_URI'] ?? '';
+$path = explode('?', $path)[0];
+$parts = explode('/', $path);
+$country = strtoupper($parts[1] ?? 'lv');
 
 $DB = new PDO('sqlite:../nordpool.db');
 
@@ -6,27 +20,24 @@ $prices = [];
 $tz_riga = new DateTimeZone('Europe/Riga');
 $tz_cet = new DateTimeZone('Europe/Berlin');
 
-$vat = isset($_GET['vat']);
+$with_vat = isset($_GET['vat']);
 
-function debug(...$vars): void
-{
-    $vars = func_get_args();
-    if (isset($_GET['debug'])) {
-        foreach ($vars as $var) {
-            echo '<pre>';
-            var_dump($var);
-            echo '</pre>';
-        }
-    }
+// $country = strtoupper($_GET['country'] ?? 'lv');
+if (!isset($countryConfig[$country])) {
+    $country = 'LV';
 }
 
-foreach ($DB->query("SELECT * FROM spot_prices WHERE ts_start >= DATE(CURRENT_TIMESTAMP, '-30 day') ORDER BY ts_start DESC") as $row) {
+$locale = new AppLocale($countryConfig[$country], $translations);
+
+$vat = $locale->get('vat');
+
+foreach ($DB->query("SELECT * FROM spot_prices WHERE country = " . $DB->quote($locale->get('code')) . " AND ts_start >= DATE(CURRENT_TIMESTAMP, '-10 day') ORDER BY ts_start DESC") as $row) {
     try {
         $start = new DateTime($row['ts_start'], $tz_cet);
         $end = new DateTime($row['ts_end'], $tz_cet);
         $start->setTimeZone($tz_riga);
         $end->setTimeZone($tz_riga);
-        $prices[$start->format('Y-m-d')][$start->format('H') . '-' . $end->format('H')] = round(($vat ? 1.21 : 1) * ((float)$row['value']) / 1000, 4);
+        $prices[$start->format('Y-m-d')][$start->format('H') . '-' . $end->format('H')] = round(($with_vat ? 1 + $vat : 1) * ((float) $row['value']) / 1000, 4);
     } catch (Exception $e) {
         continue;
     }
@@ -34,69 +45,13 @@ foreach ($DB->query("SELECT * FROM spot_prices WHERE ts_start >= DATE(CURRENT_TI
 
 $today = $prices[date('Y-m-d')] ?? [];
 $tomorrow = $prices[date('Y-m-d', strtotime('tomorrow'))] ?? [];
-$today_avg = count($today) === 24 ? array_sum($today)/count($today) : null;
-$tomorrow_avg = count($tomorrow) === 24 ? array_sum($tomorrow)/count($tomorrow) : null;
+$today_avg = count($today) === 24 ? array_sum($today) / count($today) : null;
+$tomorrow_avg = count($tomorrow) === 24 ? array_sum($tomorrow) / count($tomorrow) : null;
 
 $today_max = count($today) ? max($today) : 0;
 $today_min = count($today) ? min($today) : 0;
 $tomorrow_max = count($tomorrow) ? max($tomorrow) : 0;
 $tomorrow_min = count($tomorrow) ? min($tomorrow) : 0;
-
-function getColorPercentage($value, $min, $max): string
-{
-    if (!$value) {
-        return '#fff';
-    }
-    $pct = ($max - $min) == 0 ? 0 : ($value - $min) / ($max - $min);
-
-    $percentColors = [
-        ['pct' => 0.0, 'color' => ['r' => 0x00, 'g' => 0xff, 'b' => 0]],
-        ['pct' => 0.5, 'color' => ['r' => 0xff, 'g' => 0xff, 'b' => 0]],
-        ['pct' => 1.0, 'color' => ['r' => 0xff, 'g' => 0x00, 'b' => 0]],
-    ];
-
-
-    for ($i = 1; $i < count($percentColors) - 1; $i++) {
-        if ($pct < $percentColors[$i]['pct']) {
-            break;
-        }
-    }
-
-    $lower = $percentColors[$i - 1];
-    $upper = $percentColors[$i];
-    $range = $upper['pct'] - $lower['pct'];
-    $rangePct = ($pct - $lower['pct']) / $range;
-    $pctLower = 1 - $rangePct;
-    $pctUpper = $rangePct;
-    $color = [
-        'r' => floor($lower['color']['r'] * $pctLower + $upper['color']['r'] * $pctUpper),
-        'g' => floor($lower['color']['g'] * $pctLower + $upper['color']['g'] * $pctUpper),
-        'b' => floor($lower['color']['b'] * $pctLower + $upper['color']['b'] * $pctUpper),
-    ];
-    return 'rgb(' . implode(',', [$color['r'], $color['g'], $color['b']]) . ')';
-}
-
-$months = [
-    '',
-    'jan',
-    'feb',
-    'mar',
-    'apr',
-    'mai',
-    'jūn',
-    'jūl',
-    'aug',
-    'sep',
-    'okt',
-    'nov',
-    'dec',
-];
-
-function format($number): string
-{
-    $num = number_format($number, 4);
-    return substr($num, 0, strpos($num, '.') + 3) . '<span class="extra-decimals">' . substr($num, -2) . '</span>';
-}
 
 $now = date('H') . '-' . date('H', strtotime('+1 hour'));
 
@@ -107,42 +62,57 @@ foreach ($prices as $k => $day) {
 $hours = array_keys($today);
 asort($hours);
 
-?><!doctype html>
-<html lang="en">
-<head>
-<!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-CRFT0MS7XN"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
+?>
+<!doctype html>
+<html lang="<?= strtolower($locale->get('code_lc')) ?>">
 
-  gtag('config', 'G-CRFT0MS7XN');
-</script>
+<head>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-CRFT0MS7XN"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+
+        function gtag() {
+            dataLayer.push(arguments);
+        }
+        gtag('js', new Date());
+
+        gtag('config', 'G-CRFT0MS7XN');
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport"
-          content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+        content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <title>Nordpool elektrības cenas (day-ahead, hourly, LV)</title>
+    <title><?= $locale->msg('title') ?></title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fira+Sans:wght@100;400;700&display=swap" rel="stylesheet">
+    <script src="/echarts.min.js"></script>
 
-    <!--suppress CssUnusedSymbol -->
     <style>
-
         body {
             font-family: 'fira sans', sans-serif;
         }
 
-        h1 {
+        header h1 {
             font-size: 2rem;
             text-align: center;
+        }
+
+        footer {
+            border-top: 1px solid #aaa;
+            padding: 0 .5rem;
+            margin-top: 2em;
         }
 
         #app footer p {
             font-size: smaller;
             text-align: left;
+        }
+
+        #legend {
+            text-align: center;
+            font-size: smaller;
         }
 
         .help {
@@ -164,7 +134,6 @@ asort($hours);
         }
 
         #app p {
-            text-align: center;
             line-height: 1.5;
         }
 
@@ -175,7 +144,8 @@ asort($hours);
             width: auto;
         }
 
-        th, td {
+        th,
+        td {
             padding: 5px 10px;
             border: 2px solid #fff;
         }
@@ -185,12 +155,17 @@ asort($hours);
             white-space: nowrap;
         }
 
+        tbody td {
+            width: 50%;
+        }
+
         tr.now {
             outline: 3px solid #f00;
         }
 
         .price {
             text-align: right;
+            color: #fff;
             font-family: 'consolas', monospace;
         }
 
@@ -204,114 +179,293 @@ asort($hours);
         }
 
         .good {
-            background-color: #0f0;
+            background-color: rgb(<?= $percentColors[0]['color']['r'] ?>, <?= $percentColors[0]['color']['g'] ?>, <?= $percentColors[0]['color']['b'] ?>);
+            color: #fff;
         }
 
         .bad {
-            background-color: #f00;
+            background-color: rgb(<?= $percentColors[2]['color']['r'] ?>, <?= $percentColors[2]['color']['g'] ?>, <?= $percentColors[2]['color']['b'] ?>);
             color: #fff;
         }
 
         .extra-decimals {
             opacity: .4;
         }
+
+        header {
+            display: grid;
+            grid-template-columns: 1fr auto;
+        }
+
+        header p {
+            text-align: right;
+        }
+
+        .flag {
+            height: 1.5em;
+            margin: 0 .2em;
+        }
+
+        #chart {
+            height: 400px;
+            margin: 0 auto;
+        }
+
+        #chart-selector {
+            margin: 1em 0;
+            display: grid;
+            grid-template-columns: 1fr auto;
+        }
+
+        /* nice buttons */
+        #chart-selector a {
+            display: inline-block;
+            text-align: center;
+            font-size: 1rem;
+            font-weight: 600;
+            border-radius: 8px;
+            margin: 0 .3em;
+            padding: 0.5em 1em;
+            background-color: #f0f0f0;
+            color: #333;
+            text-decoration: none;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        #chart-selector a:hover,
+        #chart-selector a[data-current] {
+            background-color: #333;
+            color: #fff;
+        }
     </style>
 </head>
+
 <body>
 
-<div id="app">
+    <div id="app">
 
-    <h1>
-        🔌🏷️ €/kWh
-    </h1>
-
-    <p>Atspoguļotā elektrības cena biržā ir
-        <?php if ($vat) { ?>
-            <strong>ar</strong> PVN (<a href="./">te ir bez PVN</a>).
-        <?php } else { ?>
-            <strong>bez</strong> PVN (<a href="?vat">te ir ar PVN</a>).
-        <?php } ?>
-    </p>
-
-<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4590024878280519"
-     crossorigin="anonymous"></script>
-<!-- nordpool header -->
-<ins class="adsbygoogle"
-     style="display:block"
-     data-ad-client="ca-pub-4590024878280519"
-     data-ad-slot="9106834831"
-     data-ad-format="auto"
-     data-full-width-responsive="true"></ins>
-<script>
-     (adsbygoogle = window.adsbygoogle || []).push({});
-</script>
-
-    <table>
-        <thead>
-        <tr>
-            <th>🕑</th>
-            <th>Šodien
-                <span class="help"><?=date('d. ') . $months[date('n')]?></span>
-                <?php if ($today_avg) { ?>
-                <br/><small>Vidēji <span><?=format($today_avg)?></span></small>
+        <header>
+            <h1>
+                🔌🏷️ €/kWh
+            </h1>
+            <p>
+                <?php foreach ($countryConfig as $code => $config) { ?>
+                    <a class="flag" href="/<?= $config['code_lc'] === 'lv' ? '' : $config['code_lc'] ?>"><img src="/<?= $config['code_lc'] ?>.svg" alt="<?= $config['name'] ?>" width="32" height="32" /></a>
                 <?php } ?>
-            </th>
-            <th>Rīt
-                <span class="help"><?=date('d. ', strtotime('tomorrow')) . $months[date('n', strtotime('tomorrow'))]?></span>
-                <?php if ($tomorrow_avg) { ?>
-                <br/><small>Vidēji <span><?=format($tomorrow_avg)?></span></small>
+                <br />
+                <?= $locale->msg('subtitle') ?>
+                <?php if ($with_vat) { ?>
+                    <?= $locale->msg('it is with VAT') ?> <?= round($vat * 100) ?>% (<a href="<?= $locale->route('/') ?>"><?= $locale->msg('show without VAT') ?></a>)
+                <?php } else { ?>
+                    <?= $locale->msg('it is without VAT') ?> <?= round($vat * 100) ?>% (<a href="<?= $locale->route('/?vat') ?>"><?= $locale->msg('show with VAT') ?></a>)
                 <?php } ?>
-            </th>
-        </tr>
-        </thead>
-        <tbody>
-        <?php foreach ($hours as $hour) { ?>
-            <tr data-hours="<?=(int)$hour?>">
-                <th><?=$hour?></th>
-                <td class="price"
-                    style="background-color: <?=getColorPercentage($today[$hour] ?? 0, $today_min, $today_max)?>"><?=isset($today[$hour]) ? format($today[$hour]) : '-'?></td>
-                <td class="price"
-                    style="<?=isset($tomorrow[$hour]) ? '' : 'text-align: center; '?>background-color: <?=getColorPercentage($tomorrow[$hour] ?? 0, $tomorrow_min, $tomorrow_max)?>"><?=isset($tomorrow[$hour]) ? format($tomorrow[$hour]) : '-'?></td>
-            </tr>
+            </p>
+        </header>
+
+        <?php if (!str_starts_with($_SERVER['HTTP_HOST'] ?? '', 'localhost') && $locale->get('code') === 'LV') { ?>
+            <script async
+                src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4590024878280519"
+                crossorigin="anonymous"></script>
+            <!-- nordpool header -->
+            <ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-4590024878280519"
+                data-ad-slot="9106834831" data-ad-format="auto" data-full-width-responsive="true"></ins>
+            <script>
+                (adsbygoogle = window.adsbygoogle || []).push({});
+            </script>
         <?php } ?>
-        </tbody>
-    </table>
 
-    <footer>
-        <p>
-            <span class="legend bad">Izvairamies tērēt elektrību</span> <span class="legend good">Krājam burciņā</span>
-        </p>
-        <p>
-            Atspoguļotā cena ir
-            <?php if ($vat) { ?>
-                ar PVN (<a href="./">var arī bez PVN</a>).
-            <?php } else { ?>
-                bez PVN (<a href="?vat">var arī ar PVN</a>).
-            <?php } ?>
-            Dati par rītdienu parādās agrā pēcpusdienā vai arī tad, kad parādās. Avots:
-            Nordpool day-ahead stundas spotu
-            cenas, LV. Krāsa atspoguļo cenu sāļumu konkrētajā dienā, nevis visā tabulā. Attēlotais ir Latvijas laiks.
-            Dati pieejami arī <a href="nordpool.csv">kā parasts CSV</a> un <a href="nordpool-excel.csv">kā Excel'im
-                piemērots CSV</a>.
-        </p>
-    </footer>
+        <table>
+            <thead>
+                <tr>
+                    <th>🕑</th>
+                    <th><?= $locale->msg('Šodien') ?>
+                        <span class="help"><?= $locale->formatDate(strtotime('today'), 'd. MMM') ?></span><br />
+                        <small><?= $locale->msg('Vidēji') ?> <span><?= $today_avg ? format($today_avg) : '—' ?></span></small>
+                        </small>
+                    </th>
+                    <th><?= $locale->msg('Rīt') ?>
+                        <span
+                            class="help"><?= $locale->formatDate(strtotime('tomorrow'), 'd. MMM') ?></span><br />
+                        <small><?= $locale->msg('Vidēji') ?> <span><?= $tomorrow_avg ? format($tomorrow_avg) : '—' ?></span>
+                        </small>
+                    </th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php
+                $legend = [];
+                $values['today'] = [];
+                $values['tomorrow'] = [];
+                ?>
+                <?php foreach ($hours as $hour) {
+                    $legend[] = explode('-', $hour)[0];
+                    $values['today'][$hour] = $today[$hour] ?? 0;
+                    $values['tomorrow'][$hour] = $tomorrow[$hour] ?? 0;
+                ?>
+                    <tr data-hours="<?= (int) $hour ?>">
+                        <th><?= $hour ?></th>
+                        <td class="price"
+                            style="background-color: <?= getColorPercentage($today[$hour] ?? 0, $today_min, $today_max) ?>">
+                            <?= isset($today[$hour]) ? format($today[$hour]) : '-' ?>
+                        </td>
+                        <td class="price"
+                            style="<?= isset($tomorrow[$hour]) ? '' : 'text-align: center; ' ?>background-color: <?= getColorPercentage($tomorrow[$hour] ?? 0, $tomorrow_min, $tomorrow_max) ?>">
+                            <?= isset($tomorrow[$hour]) ? format($tomorrow[$hour]) : '-' ?>
+                        </td>
+                    </tr>
+                <?php } ?>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            let hours = null;
-            (function updateNow() {
-                const currentHours = (new Date()).getHours();
-                if (hours !== currentHours) {
-                    Array.from(document.querySelectorAll('[data-hours]')).forEach((row) => {
-                        row.classList.toggle('now', currentHours === parseInt(row.dataset.hours))
+                <?php
+                $legend[] = '00';
+                $values['today'][] = $tomorrow['00-01'] ?? 0;
+                ?>
+            </tbody>
+        </table>
+
+        <p id="legend">
+            <span class="legend bad"><?= $locale->msg('Izvairāmies tērēt elektrību') ?></span> <span
+                class="legend good"><?= $locale->msg('Krājam burciņā') ?></span>
+        </p>
+
+        <div id="chart-selector">
+            <h2><?= $locale->msg('Primitīvs grafiks') ?></h2>
+            <p>
+                <a href="#" data-day="today" data-current><?= $locale->msg('Šodien') ?></a>
+                <a href="#" data-day="tomorrow"><?= $locale->msg('Rīt') ?></a>
+            </p>
+        </div>
+
+        <div id="chart"></div>
+        <script>
+            const chart = echarts.init(document.getElementById('chart'));
+            const option = {
+                animation: false,
+                renderer: 'svg',
+                legend: {
+                    show: false
+                },
+                grid: {
+                    top: 40,
+                    left: 40,
+                    right: 10,
+                    bottom: 20
+                },
+                title: {
+                    show: false,
+                },
+                tooltip: {
+                    trigger: 'axis',
+                    formatter: function(params) {
+                        let hour = parseInt(params[0].name, 10);
+                        let value = parseFloat(params[0].value);
+                        let strValue = value.toFixed(2);
+                        // add extra decimals
+                        strValue += '<small>';
+                        strValue += value.toString().substring(4).padEnd(2, '0');
+                        strValue += '</small> €/kWh'
+
+
+                        let html = `
+                        ${(''+hour).padStart(2, '0')}:00 - ${(''+(hour+1)%24).padStart(2, '0')}:00<br/>
+                        ${strValue}
+                        `;
+                        return html;
+                    },
+                    axisPointer: {
+                        type: 'cross',
+                        snap: true,
+                    },
+                },
+                xAxis: {
+                    type: 'category',
+                    data: <?= json_encode(array_values($legend)) ?>,
+                    boundaryGap: false,
+                    splitLine: {
+                        show: true,
+                        interval: 0,
+                        lineStyle: {
+                            type: 'dashed',
+                        },
+                    },
+                },
+                yAxis: {
+                    type: 'value',
+                    axisLabel: {
+                        formatter: function(value) {
+                            return parseFloat(value).toFixed(2)
+                        }
+                    },
+                },
+                series: [{
+                    name: '€/kWh',
+                    type: 'line',
+                    step: 'end',
+                    symbol: 'none',
+                    data: <?= json_encode(array_values($values['today'])) ?>,
+                }, ]
+            };
+
+            chart.setOption(option);
+
+            const dataset = {
+                'today': <?= json_encode(array_values($values['today'])) ?>,
+                'tomorrow': <?= json_encode(array_values($values['tomorrow'])) ?>,
+            };
+        </script>
+
+        <footer>
+            <p>
+                <?php if ($with_vat) { ?>
+                    <?= $locale->msg('Price shown includes VAT') ?>
+                    (<a href="<?= $locale->route('/') ?>"><?= $locale->msg('show without VAT') ?></a>).
+                <?php } else { ?>
+                    <?= $locale->msg('Price shown is without VAT') ?>
+                    (<a href="<?= $locale->route('/?vat') ?>"><?= $locale->msg('show with VAT') ?></a>).
+                <?php } ?>
+
+                <?= $locale->msgf(
+                    'disclaimer',
+                    '<a href="/nordpool-' . $locale->get('code_lc') . '.csv">' .
+                        $locale->msg('normal CSV') .
+                        '</a>',
+                    '<a href="/nordpool-' . $locale->get('code_lc') . '-excel.csv">' .
+                        $locale->msg('Excel CSV') .
+                        '</a>'
+                ) ?>
+        </footer>
+
+        <script>
+            document.addEventListener('DOMContentLoaded', () => {
+                // now let's highlight the current hour continuously
+                let hours = null;
+                (function updateNow() {
+                    const currentHours = (new Date()).getHours();
+                    if (hours !== currentHours) {
+                        Array.from(document.querySelectorAll('[data-hours]')).forEach((row) => {
+                            row.classList.toggle('now', currentHours === parseInt(row.dataset.hours))
+                        })
+                        hours = currentHours;
+                    }
+                    setTimeout(updateNow, 1000);
+                })()
+
+                document.querySelectorAll('#chart-selector a').forEach(element => element.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const day = e.target.dataset.day;
+                    chart.setOption({
+                        series: [{
+                            data: dataset[day],
+                        }]
+                    });
+                    document.querySelectorAll('#chart-selector a').forEach((el) => {
+                        el.removeAttribute('data-current');
                     })
-                    hours = currentHours;
-                }
-                setTimeout(updateNow, 1000);
-            })()
-        })
-    </script>
+                    e.target.setAttribute('data-current', true);
+                }))
+            })
+        </script>
 
-</div>
+    </div>
 </body>
+
 </html>

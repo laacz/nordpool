@@ -96,7 +96,8 @@ asort($hours);
 
         header h1 {
             font-size: 2rem;
-            text-align: center;
+            text-align: left;
+            white-space: nowrap;
         }
 
         footer {
@@ -199,6 +200,7 @@ asort($hours);
 
         header p {
             text-align: right;
+            font-size: smaller;
         }
 
         .flag {
@@ -246,14 +248,14 @@ asort($hours);
 
         <header>
             <h1>
-                🔌🏷️ €/kWh
+                🔌🏷️ <br/>€/kWh
             </h1>
             <p>
                 <?php foreach ($countryConfig as $code => $config) { ?>
                     <a class="flag" href="/<?= $config['code_lc'] === 'lv' ? '' : $config['code_lc'] ?>"><img src="/<?= $config['code_lc'] ?>.svg" alt="<?= $config['name'] ?>" width="32" height="32" /></a>
                 <?php } ?>
                 <br />
-                <?= $locale->msg('subtitle') ?>
+                <?= $locale->msg('subtitle') ?><br/>
                 <?php if ($with_vat) { ?>
                     <?= $locale->msg('it is with VAT') ?> <?= round($vat * 100) ?>% (<a href="<?= $locale->route('/') ?>"><?= $locale->msg('show without VAT') ?></a>)
                 <?php } else { ?>

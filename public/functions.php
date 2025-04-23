@@ -102,11 +102,11 @@ $translations = [
     ],
 
     'disclaimer' => [
-        'LV' => 'Dati par rītdienu parādās agrā pēcpusdienā vai arī tad, kad parādās. Avots: Nordpool day-ahead stundas spotu cenas, LV. Krāsa atspoguļo cenu sāļumu konkrētajā dienā, nevis visā tabulā. Attēlotais ir Latvijas laiks. Dati pieejami arī kā %s un kā %s.<br/>
+        'LV' => 'Dati par rītdienu parādās agrā pēcpusdienā vai arī tad, kad parādās. Avots: Nordpool day-ahead stundas spotu cenas, LV. Krāsa atspoguļo cenu sāļumu konkrētajā dienā, nevis visā tabulā. Attēlotais ir Latvijas laiks. Dati pieejami arī kā %s un kā %s. Dati tiek atjaunoti reizi dienā ap 12:00 ziemā un ap 11:00 vasarā.<br/>
         Kontaktiem un jautājumiem: <a href="mailto:apps@didnt.work">apps@didnt.work</a>.',
-        'LT' => 'Ryto duomenys pasirodo ankstyvą popietę arba kai tik jie pasirodo. Šaltinis: Nordpool day-ahead valandos spot kainos, LT. Spalva atspindi kainų druskingumą konkrečią dieną, o ne visoje lentelėje. Rodomas Lietuvos laikas. Duomenys taip pat prieinami kaip %s ir kaip %s.<br/>
+        'LT' => 'Ryto duomenys pasirodo ankstyvą popietę arba kai tik jie pasirodo. Šaltinis: Nordpool day-ahead valandos spot kainos, LT. Spalva atspindi kainų druskingumą konkrečią dieną, o ne visoje lentelėje. Rodomas Lietuvos laikas. Duomenys taip pat prieinami kaip %s ir kaip %s. Duomenys atnaujinami kartą per dieną apie 12:00 žiemą ir apie 11:00 vasarą.<br/>
         Kontaktams ir klausimams: <<a href="mailto:apps@didnt.work">apps@didnt.work</a> (pageidautina latviškai arba angliškai).',
-        'EE' => 'Homme andmed ilmuvad varakult pärastlõunal või kui need ilmuvad. Allikas: Nordpool day-ahed tundide spot hinnad, EE. Värv peegeldab hinna soolsust konkreetsel päeval, mitte kogu tabelis. Kuvatakse Eesti aeg. Andmed on saadaval ka %s ja %s kujul. <br/>
+        'EE' => 'Homme andmed ilmuvad varakult pärastlõunal või kui need ilmuvad. Allikas: Nordpool day-ahed tundide spot hinnad, EE. Värv peegeldab hinna soolsust konkreetsel päeval, mitte kogu tabelis. Kuvatakse Eesti aeg. Andmed on saadaval ka %s ja %s kujul. Andmeid uuendatakse üks kord päevas umbes 12:00 paiku talvel ja umbes 11:00 suvel.<br/>
         Kontaktide ja küsimuste jaoks: <a href="mailto:apps@didnt.work">apps@didnt.work</a> (eelistatavalt läti või inglise keeles).',
     ],
     'Price shown is without VAT' => [
@@ -120,9 +120,9 @@ $translations = [
         'EE' => 'Näidatud hind on käibemaksuga',
     ],
     'subtitle'  => [
-        'LV' => 'Nordpool elektrības biržas SPOT cenas šodienai un rītdienai, līdzko tās tiek publicētas.',
-        'LT' => 'Nordpool elektros biržos SPOT kainos šiandien ir rytoj, kai tik paskelbtos.',
-        'EE' => 'Nordpool elektrihinna börsi SPOT hinnad täna ja homme, kui need on avaldatud.',
+        'LV' => 'Nordpool elektrības biržas SPOT cenas šodienai un rītdienai Latvijā.',
+        'LT' => 'Nordpool elektros biržos SPOT kainos šiandien ir rytoj Lietuvoje',
+        'EE' => 'Nordpooli elektribörsi SPOT hinnad tänaseks ja homseks Eestis',
     ],
     'it is without VAT' => [
         'LV' => 'Tās ir <strong>bez PVN</strong>',
@@ -196,8 +196,8 @@ class AppLocale
     }
 
     /*
-    * Format a date/time string according to the specified format and locale in the $country['locale']. 
-    * Format string is 
+    * Format a date/time string according to the specified format and locale in the $country['locale'].
+    * Format string is
     * based on ICU DateTime format.
     *
     * @param mixed $time The date/time to format. Can be a DateTime object, timestamp, or string.

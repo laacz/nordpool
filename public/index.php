@@ -347,7 +347,7 @@ asort($hours);
                     show: false
                 },
                 grid: {
-                    top: 40,
+                    top: 50,
                     left: 40,
                     right: 10,
                     bottom: 20
@@ -398,13 +398,54 @@ asort($hours);
                         }
                     },
                 },
-                series: [{
+                series: [
+                  {
                     name: '€/kWh',
                     type: 'line',
                     step: 'end',
                     symbol: 'none',
                     data: <?= json_encode(array_values($values['today'])) ?>,
-                }, ]
+                    markPoint: {
+                      data: [
+                        {
+                          type: 'max',
+                          name: 'Max',
+                          symbolOffset: [0, -10],
+                          itemStyle: {
+                            color: '#a00',
+                          }
+                        },
+                        {
+                          type: 'min',
+                          name: 'Min',
+                          symbolOffset: [0, 10],
+                          itemStyle: {
+                            color: '#0a0',
+                          }
+                        }
+                      ],
+                      symbol: 'rect',
+                      symbolSize: [40, 15],
+                      label: {
+                        color: '#fff',
+                        formatter: function(value) {
+                            return (Math.round(parseFloat(value.value)*100)/100).toFixed(2)
+                        }
+                      }
+                    },
+                    markLine: {
+                      data: [{ type: 'average', name: '<?=$locale->msg('Vidēji')?>' }],
+                      symbol: 'none',
+                      label: {
+                        show: true,
+                        position: "insideStartTop",
+                        backgroundColor: "rgba(74, 101, 186, .3)",
+                        padding: [3, 3],
+                        // shadowColor: "ff0000",
+                      }
+                    }
+                },
+                ]
             };
 
             chart.setOption(option);

@@ -26,14 +26,14 @@ func main() {
 		if os.Args[1] == "csv" {
 			country := "LV"
 			if len(os.Args) > 2 {
-				country = os.Args[2]
+				country = strings.ToUpper(os.Args[2])
 			}
 
 			writeCsv(db, ",", country)
 		} else if os.Args[1] == "excel" {
 			country := "LV"
 			if len(os.Args) > 2 {
-				country = os.Args[2]
+				country = strings.ToUpper(os.Args[2])
 			}
 
 			writeCsv(db, ";", country)

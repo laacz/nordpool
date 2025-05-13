@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"math"
 	"net/http"
 	"os"
 	"strings"
@@ -165,97 +164,6 @@ type SpotPrice struct {
 	Price     float64
 }
 
-type SpotDay struct {
-	Date   time.Time
-	Prices []SpotPrice
-	Min    float64
-	Max    float64
-	Avg    float64
-}
-
-func (sd *SpotDay) UpdateAggregates() {
-	sd.Min = math.MaxFloat64
-	sd.Max = -math.MaxFloat64
-	var sum float64
-	for _, price := range sd.Prices {
-		if price.Price < sd.Min {
-			sd.Min = price.Price
-		}
-		if price.Price > sd.Max {
-			sd.Max = price.Price
-		}
-		sum += price.Price
-	}
-	sd.Avg = sum / float64(len(sd.Prices))
-	//fmt.Printf("D: avg: %f, max: %f, min: %f\n", sd.Avg, sd.Max, sd.Min)
-}
-
-func (sd SpotDay) HourlyPrice(hour int) *float64 {
-	for _, price := range sd.Prices {
-		if price.StartTime.Hour() == hour {
-			p := price.Price
-			//p := price.Price
-			return &p
-		}
-	}
-
-	return nil
-}
-
-func (sd SpotDay) HourlyPriceVat(hour int) *float64 {
-	p := sd.HourlyPrice(hour)
-	if p != nil {
-		ret := *p * 1.21
-		return &ret
-	}
-	return p
-}
-
-func (sd SpotDay) HourtlyPriceAsColor(hour int) string {
-	price := sd.HourlyPrice(hour)
-
-	if price == nil {
-		return "#fff"
-	}
-
-	fmt.Println()
-	var pct float64
-	if (sd.Max - sd.Min) == 0 {
-		pct = 0
-	} else {
-		pct = (*price - sd.Min) / (sd.Max - sd.Min)
-	}
-
-	percentColors := []struct {
-		Pct   float64
-		Color []int
-	}{
-		{Pct: 0.0, Color: []int{0x00, 0xff, 0}},
-		{Pct: 0.5, Color: []int{0xff, 0xff, 0}},
-		{Pct: 1.0, Color: []int{0xff, 0x00, 0}},
-	}
-	var i int
-	for i = 1; i < len(percentColors)-1; i++ {
-		if pct < percentColors[i].Pct {
-			break
-		}
-	}
-
-	//fmt.Printf("D: i: %d\n", i)
-
-	lower := percentColors[i-1]
-	upper := percentColors[i]
-	rng := upper.Pct - lower.Pct
-	rngPct := (pct - lower.Pct) / rng
-	pctLower := 1 - rngPct
-	pctUpper := rngPct
-	r := int(math.Floor(float64(lower.Color[0])*pctLower + float64(upper.Color[0])*pctUpper))
-	g := int(math.Floor(float64(lower.Color[1])*pctLower + float64(upper.Color[1])*pctUpper))
-	b := int(math.Floor(float64(lower.Color[2])*pctLower + float64(upper.Color[2])*pctUpper))
-
-	return fmt.Sprintf("rgb(%d,%d,%d)", r, g, b)
-}
-
 // Store stores a SpotPrice in the database, ignoring existing entries
 func (price *SpotPrice) Store(db *sql.DB, country string) error {
 	fmt.Println(country, price)
@@ -266,7 +174,7 @@ func (price *SpotPrice) Store(db *sql.DB, country string) error {
 	return nil
 }
 
-// inferEndDate infers the end date from the command line arguments, or defaults to tomorrow
+// inferEndDate infers the end date from the command line arguments, or returns tomorrow
 func inferEndDate() (*time.Time, error) {
 	var err error
 	ret := time.Now().UTC().Add(time.Hour * 24)

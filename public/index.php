@@ -385,13 +385,11 @@ asort($hours);
                     formatter: function(params) {
                         let hour = parseInt(params[0].name, 10);
                         let value = parseFloat(params[0].value);
-                        let strValue = value.toFixed(2);
-                        // add extra decimals
+                        let strValue = value.toString().padEnd(4, '0').substring(0, 4);
+
                         strValue += '<small>';
                         strValue += value.toString().substring(4).padEnd(2, '0');
                         strValue += '</small> €/kWh'
-
-
                         let html = `
                         ${(''+hour).padStart(2, '0')}:00 - ${(''+(hour+1)%24).padStart(2, '0')}:00<br/>
                         ${strValue}

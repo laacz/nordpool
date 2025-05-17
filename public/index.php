@@ -31,7 +31,31 @@ $locale = new AppLocale($countryConfig[$country], $translations);
 
 $vat = $locale->get('vat');
 
-foreach ($DB->query("SELECT * FROM spot_prices WHERE country = " . $DB->quote($locale->get('code')) . " AND ts_start >= DATE(CURRENT_TIMESTAMP, '-10 day') ORDER BY ts_start DESC") as $row) {
+$current_time = new DateTimeImmutable('now', $tz_cet);
+if (isset($_GET['now'])) {
+    $current_time = new DateTimeImmutable($_GET['now'], $tz_cet);
+}
+
+$sql_time = $current_time->format('Y-m-d H:i:s');
+
+$sql ="
+SELECT * 
+  FROM spot_prices 
+ WHERE country = " . $DB->quote($locale->get('code')) . " 
+   AND ts_start >= DATE(CURRENT_TIMESTAMP, '-10 day') 
+ORDER BY ts_start DESC
+";
+
+    $sql = "
+    SELECT * 
+      FROM spot_prices 
+     WHERE country = " . $DB->quote($locale->get('code')) . " 
+       AND ts_start >= DATE(" .$DB->quote($sql_time) . ", '-2 day')
+       AND ts_start <= DATE(" . $DB->quote($sql_time) . ", '+2 day')
+    ORDER BY ts_start DESC
+    ";
+
+foreach ($DB->query($sql) as $row) {
     try {
         $start = new DateTime($row['ts_start'], $tz_cet);
         $end = new DateTime($row['ts_end'], $tz_cet);
@@ -43,8 +67,9 @@ foreach ($DB->query("SELECT * FROM spot_prices WHERE country = " . $DB->quote($l
     }
 }
 
-$today = $prices[date('Y-m-d')] ?? [];
-$tomorrow = $prices[date('Y-m-d', strtotime('tomorrow'))] ?? [];
+$today = $prices[$current_time->format('Y-m-d')] ?? [];
+$tomorrow = $prices[$current_time->modify('+1 day')->format('Y-m-d')] ?? [];
+
 $today_avg = count($today) === 24 ? array_sum($today) / count($today) : null;
 $tomorrow_avg = count($tomorrow) === 24 ? array_sum($tomorrow) / count($tomorrow) : null;
 
@@ -53,7 +78,7 @@ $today_min = count($today) ? min($today) : 0;
 $tomorrow_max = count($tomorrow) ? max($tomorrow) : 0;
 $tomorrow_min = count($tomorrow) ? min($tomorrow) : 0;
 
-$now = date('H') . '-' . date('H', strtotime('+1 hour'));
+$now = $current_time->format('H') . '-' . $current_time->modify('+1 hour')->format('H');
 
 foreach ($prices as $k => $day) {
     ksort($prices[$k]);
@@ -281,13 +306,13 @@ asort($hours);
                 <tr>
                     <th>🕑</th>
                     <th><?= $locale->msg('Šodien') ?>
-                        <span class="help"><?= $locale->formatDate(strtotime('today'), 'd. MMM') ?></span><br />
+                        <span class="help"><?= $locale->formatDate($current_time, 'd. MMM') ?></span><br />
                         <small><?= $locale->msg('Vidēji') ?> <span><?= $today_avg ? format($today_avg) : '—' ?></span></small>
                         </small>
                     </th>
                     <th><?= $locale->msg('Rīt') ?>
                         <span
-                            class="help"><?= $locale->formatDate(strtotime('tomorrow'), 'd. MMM') ?></span><br />
+                            class="help"><?= $locale->formatDate($current_time->modify('+1 day'), 'd. MMM') ?></span><br />
                         <small><?= $locale->msg('Vidēji') ?> <span><?= $tomorrow_avg ? format($tomorrow_avg) : '—' ?></span>
                         </small>
                     </th>
@@ -482,7 +507,7 @@ asort($hours);
                 // now let's highlight the current hour continuously
                 let hours = null;
                 (function updateNow() {
-                    const currentHours = (new Date()).getHours();
+                    const currentHours = (new Date('<?=$current_time->format('Y-m-d H:i:s')?>')).getHours();
                     if (hours !== currentHours) {
                         Array.from(document.querySelectorAll('[data-hours]')).forEach((row) => {
                             row.classList.toggle('now', currentHours === parseInt(row.dataset.hours))

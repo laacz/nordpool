@@ -22,7 +22,6 @@ $tz_cet = new DateTimeZone('Europe/Berlin');
 
 $with_vat = isset($_GET['vat']);
 
-// $country = strtoupper($_GET['country'] ?? 'lv');
 if (!isset($countryConfig[$country])) {
     $country = 'LV';
 }
@@ -38,22 +37,14 @@ if (isset($_GET['now'])) {
 
 $sql_time = $current_time->format('Y-m-d H:i:s');
 
-$sql ="
+$sql = "
 SELECT * 
   FROM spot_prices 
  WHERE country = " . $DB->quote($locale->get('code')) . " 
-   AND ts_start >= DATE(CURRENT_TIMESTAMP, '-10 day') 
+   AND ts_start >= DATE(" . $DB->quote($sql_time) . ", '-2 day')
+   AND ts_start <= DATE(" . $DB->quote($sql_time) . ", '+2 day')
 ORDER BY ts_start DESC
 ";
-
-    $sql = "
-    SELECT * 
-      FROM spot_prices 
-     WHERE country = " . $DB->quote($locale->get('code')) . " 
-       AND ts_start >= DATE(" .$DB->quote($sql_time) . ", '-2 day')
-       AND ts_start <= DATE(" . $DB->quote($sql_time) . ", '+2 day')
-    ORDER BY ts_start DESC
-    ";
 
 foreach ($DB->query($sql) as $row) {
     try {
@@ -61,11 +52,13 @@ foreach ($DB->query($sql) as $row) {
         $end = new DateTime($row['ts_end'], $tz_cet);
         $start->setTimeZone($tz_riga);
         $end->setTimeZone($tz_riga);
-        $prices[$start->format('Y-m-d')][$start->format('H') . '-' . $end->format('H')] = round(($with_vat ? 1 + $vat : 1) * ((float) $row['value']) / 1000, 4);
+        $prices[$start->format('Y-m-d')][$start->format('H') . '-' . $end->format('H')] = round(($with_vat ? 1 + $vat : 1) * ((float)$row['value']) / 1000, 4);
     } catch (Exception $e) {
         continue;
     }
 }
+
+$current_time = $current_time->setTimezone($tz_riga);
 
 $today = $prices[$current_time->format('Y-m-d')] ?? [];
 $tomorrow = $prices[$current_time->modify('+1 day')->format('Y-m-d')] ?? [];
@@ -101,12 +94,11 @@ asort($hours);
             dataLayer.push(arguments);
         }
         gtag('js', new Date());
-
         gtag('config', 'G-CRFT0MS7XN');
     </script>
     <meta charset="UTF-8">
     <meta name="viewport"
-        content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+          content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <title><?= $locale->msg('title') ?></title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -269,269 +261,272 @@ asort($hours);
 
 <body>
 
-    <div id="app">
+<div id="app">
 
-        <header>
-            <h1>
-                🔌🏷️ <br/>€/kWh
-            </h1>
-            <p>
-                <?php foreach ($countryConfig as $code => $config) { ?>
-                    <a class="flag" href="/<?= $config['code_lc'] === 'lv' ? '' : $config['code_lc'] ?>"><img src="/<?= $config['code_lc'] ?>.svg" alt="<?= $config['name'] ?>" width="32" height="32" /></a>
-                <?php } ?>
-                <br />
-                <?= $locale->msg('subtitle') ?><br/>
-                <?php if ($with_vat) { ?>
-                    <?= $locale->msg('it is with VAT') ?> <?= round($vat * 100) ?>% (<a href="<?= $locale->route('/') ?>"><?= $locale->msg('show without VAT') ?></a>)
-                <?php } else { ?>
-                    <?= $locale->msg('it is without VAT') ?> <?= round($vat * 100) ?>% (<a href="<?= $locale->route('/?vat') ?>"><?= $locale->msg('show with VAT') ?></a>)
-                <?php } ?>
-            </p>
-        </header>
+    <header>
+        <h1>
+            🔌🏷️ <br/>€/kWh
+        </h1>
+        <p>
+            <?php foreach ($countryConfig as $code => $config) { ?>
+                <a class="flag" href="/<?= $config['code_lc'] === 'lv' ? '' : $config['code_lc'] ?>"><img
+                            src="/<?= $config['code_lc'] ?>.svg" alt="<?= $config['name'] ?>" width="32"
+                            height="32"/></a>
+            <?php } ?>
+            <br/>
+            <?= $locale->msg('subtitle') ?><br/>
+            <?php if ($with_vat) { ?>
+                <?= $locale->msg('it is with VAT') ?> <?= round($vat * 100) ?>% (<a
+                        href="<?= $locale->route('/') ?>"><?= $locale->msg('show without VAT') ?></a>)
+            <?php } else { ?>
+                <?= $locale->msg('it is without VAT') ?> <?= round($vat * 100) ?>% (<a
+                        href="<?= $locale->route('/?vat') ?>"><?= $locale->msg('show with VAT') ?></a>)
+            <?php } ?>
+        </p>
+    </header>
 
-        <?php if (!str_starts_with($_SERVER['HTTP_HOST'] ?? '', 'localhost') && $locale->get('code') === 'LV') { ?>
-            <script async
+    <?php if (!str_starts_with($_SERVER['HTTP_HOST'] ?? '', 'localhost') && $locale->get('code') === 'LV') { ?>
+        <script async
                 src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4590024878280519"
                 crossorigin="anonymous"></script>
-            <!-- nordpool header -->
-            <ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-4590024878280519"
-                data-ad-slot="9106834831" data-ad-format="auto" data-full-width-responsive="true"></ins>
-            <script>
-                (adsbygoogle = window.adsbygoogle || []).push({});
-            </script>
+        <!-- nordpool header -->
+        <ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-4590024878280519"
+             data-ad-slot="9106834831" data-ad-format="auto" data-full-width-responsive="true"></ins>
+        <script>
+            (adsbygoogle = window.adsbygoogle || []).push({});
+        </script>
+    <?php } ?>
+
+    <table>
+        <thead>
+        <tr>
+            <th>🕑</th>
+            <th><?= $locale->msg('Šodien') ?>
+                <span class="help"><?= $locale->formatDate($current_time, 'd. MMM') ?></span><br/>
+                <small><?= $locale->msg('Vidēji') ?> <span><?= $today_avg ? format($today_avg) : '—' ?></span></small>
+                </small>
+            </th>
+            <th><?= $locale->msg('Rīt') ?>
+                <span
+                        class="help"><?= $locale->formatDate($current_time->modify('+1 day'), 'd. MMM') ?></span><br/>
+                <small><?= $locale->msg('Vidēji') ?> <span><?= $tomorrow_avg ? format($tomorrow_avg) : '—' ?></span>
+                </small>
+            </th>
+        </tr>
+        </thead>
+        <tbody>
+        <?php
+        $legend = [];
+        $values['today'] = [];
+        $values['tomorrow'] = [];
+        ?>
+        <?php foreach ($hours as $hour) {
+            $legend[] = explode('-', $hour)[0];
+            $values['today'][$hour] = $today[$hour] ?? 0;
+            $values['tomorrow'][$hour] = $tomorrow[$hour] ?? 0;
+            ?>
+            <tr data-hours="<?= (int)$hour ?>">
+                <th><?= $hour ?></th>
+                <td class="price"
+                    style="background-color: <?= getColorPercentage($today[$hour] ?? -9999, $today_min, $today_max) ?>">
+                    <?= isset($today[$hour]) ? format($today[$hour]) : '-' ?>
+                </td>
+                <td class="price"
+                    style="<?= isset($tomorrow[$hour]) ? '' : 'text-align: center; ' ?>background-color: <?= getColorPercentage($tomorrow[$hour] ?? -9999, $tomorrow_min, $tomorrow_max) ?>">
+                    <?= isset($tomorrow[$hour]) ? format($tomorrow[$hour]) : '-' ?>
+                </td>
+            </tr>
         <?php } ?>
 
-        <table>
-            <thead>
-                <tr>
-                    <th>🕑</th>
-                    <th><?= $locale->msg('Šodien') ?>
-                        <span class="help"><?= $locale->formatDate($current_time, 'd. MMM') ?></span><br />
-                        <small><?= $locale->msg('Vidēji') ?> <span><?= $today_avg ? format($today_avg) : '—' ?></span></small>
-                        </small>
-                    </th>
-                    <th><?= $locale->msg('Rīt') ?>
-                        <span
-                            class="help"><?= $locale->formatDate($current_time->modify('+1 day'), 'd. MMM') ?></span><br />
-                        <small><?= $locale->msg('Vidēji') ?> <span><?= $tomorrow_avg ? format($tomorrow_avg) : '—' ?></span>
-                        </small>
-                    </th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php
-                $legend = [];
-                $values['today'] = [];
-                $values['tomorrow'] = [];
-                ?>
-                <?php foreach ($hours as $hour) {
-                    $legend[] = explode('-', $hour)[0];
-                    $values['today'][$hour] = $today[$hour] ?? 0;
-                    $values['tomorrow'][$hour] = $tomorrow[$hour] ?? 0;
-                ?>
-                    <tr data-hours="<?= (int) $hour ?>">
-                        <th><?= $hour ?></th>
-                        <td class="price"
-                            style="background-color: <?= getColorPercentage($today[$hour] ?? -9999, $today_min, $today_max) ?>">
-                            <?= isset($today[$hour]) ? format($today[$hour]) : '-' ?>
-                        </td>
-                        <td class="price"
-                            style="<?= isset($tomorrow[$hour]) ? '' : 'text-align: center; ' ?>background-color: <?= getColorPercentage($tomorrow[$hour] ?? -9999, $tomorrow_min, $tomorrow_max) ?>">
-                            <?= isset($tomorrow[$hour]) ? format($tomorrow[$hour]) : '-' ?>
-                        </td>
-                    </tr>
-                <?php } ?>
+        <?php
+        $legend[] = '00';
+        $values['today'][] = $tomorrow['00-01'] ?? 0;
+        ?>
+        </tbody>
+    </table>
 
-                <?php
-                $legend[] = '00';
-                $values['today'][] = $tomorrow['00-01'] ?? 0;
-                ?>
-            </tbody>
-        </table>
-
-        <p id="legend">
-            <span class="legend bad"><?= $locale->msg('Izvairāmies tērēt elektrību') ?></span> <span
+    <p id="legend">
+        <span class="legend bad"><?= $locale->msg('Izvairāmies tērēt elektrību') ?></span> <span
                 class="legend good"><?= $locale->msg('Krājam burciņā') ?></span>
+    </p>
+
+    <div id="chart-selector">
+        <h2><?= $locale->msg('Primitīvs grafiks') ?></h2>
+        <p>
+            <a href="#" data-day="today" data-current><?= $locale->msg('Šodien') ?></a>
+            <a href="#" data-day="tomorrow"><?= $locale->msg('Rīt') ?></a>
         </p>
+    </div>
 
-        <div id="chart-selector">
-            <h2><?= $locale->msg('Primitīvs grafiks') ?></h2>
-            <p>
-                <a href="#" data-day="today" data-current><?= $locale->msg('Šodien') ?></a>
-                <a href="#" data-day="tomorrow"><?= $locale->msg('Rīt') ?></a>
-            </p>
-        </div>
+    <div id="chart"></div>
+    <script>
+        const chart = echarts.init(document.getElementById('chart'));
+        const option = {
+            animation: false,
+            renderer: 'svg',
+            legend: {
+                show: false
+            },
+            grid: {
+                top: 50,
+                left: 40,
+                right: 10,
+                bottom: 20
+            },
+            title: {
+                show: false,
+            },
+            tooltip: {
+                trigger: 'axis',
+                formatter: function (params) {
+                    let hour = parseInt(params[0].name, 10);
+                    let value = parseFloat(params[0].value);
+                    let strValue = value.toString().padEnd(4, '0').substring(0, 4);
 
-        <div id="chart"></div>
-        <script>
-            const chart = echarts.init(document.getElementById('chart'));
-            const option = {
-                animation: false,
-                renderer: 'svg',
-                legend: {
-                    show: false
-                },
-                grid: {
-                    top: 50,
-                    left: 40,
-                    right: 10,
-                    bottom: 20
-                },
-                title: {
-                    show: false,
-                },
-                tooltip: {
-                    trigger: 'axis',
-                    formatter: function(params) {
-                        let hour = parseInt(params[0].name, 10);
-                        let value = parseFloat(params[0].value);
-                        let strValue = value.toString().padEnd(4, '0').substring(0, 4);
-
-                        strValue += '<small>';
-                        strValue += value.toString().substring(4).padEnd(2, '0');
-                        strValue += '</small> €/kWh'
-                        let html = `
-                        ${(''+hour).padStart(2, '0')}:00 - ${(''+(hour+1)%24).padStart(2, '0')}:00<br/>
+                    strValue += '<small>';
+                    strValue += value.toString().substring(4).padEnd(2, '0');
+                    strValue += '</small> €/kWh'
+                    let html = `
+                        ${('' + hour).padStart(2, '0')}:00 - ${('' + (hour + 1) % 24).padStart(2, '0')}:00<br/>
                         ${strValue}
                         `;
-                        return html;
-                    },
-                    axisPointer: {
-                        type: 'cross',
-                        snap: true,
+                    return html;
+                },
+                axisPointer: {
+                    type: 'cross',
+                    snap: true,
+                },
+            },
+            xAxis: {
+                type: 'category',
+                data: <?= json_encode(array_values($legend)) ?>,
+                boundaryGap: false,
+                splitLine: {
+                    show: true,
+                    interval: 0,
+                    lineStyle: {
+                        type: 'dashed',
                     },
                 },
-                xAxis: {
-                    type: 'category',
-                    data: <?= json_encode(array_values($legend)) ?>,
-                    boundaryGap: false,
-                    splitLine: {
-                        show: true,
-                        interval: 0,
-                        lineStyle: {
-                            type: 'dashed',
-                        },
-                    },
+            },
+            yAxis: {
+                type: 'value',
+                axisLabel: {
+                    formatter: function (value) {
+                        return parseFloat(value).toFixed(2)
+                    }
                 },
-                yAxis: {
-                    type: 'value',
-                    axisLabel: {
-                        formatter: function(value) {
-                            return parseFloat(value).toFixed(2)
-                        }
-                    },
-                },
-                series: [
-                  {
+            },
+            series: [
+                {
                     name: '€/kWh',
                     type: 'line',
                     step: 'end',
                     symbol: 'none',
                     data: <?= json_encode(array_values($values['today'])) ?>,
                     markPoint: {
-                      data: [
-                        {
-                          type: 'max',
-                          name: 'Max',
-                          symbolOffset: [0, -10],
-                          itemStyle: {
-                            color: '#a00',
-                          }
-                        },
-                        {
-                          type: 'min',
-                          name: 'Min',
-                          symbolOffset: [0, 10],
-                          itemStyle: {
-                            color: '#0a0',
-                          }
+                        data: [
+                            {
+                                type: 'max',
+                                name: 'Max',
+                                symbolOffset: [0, -10],
+                                itemStyle: {
+                                    color: '#a00',
+                                }
+                            },
+                            {
+                                type: 'min',
+                                name: 'Min',
+                                symbolOffset: [0, 10],
+                                itemStyle: {
+                                    color: '#0a0',
+                                }
+                            }
+                        ],
+                        symbol: 'rect',
+                        symbolSize: [40, 15],
+                        label: {
+                            color: '#fff',
+                            formatter: function (value) {
+                                return (Math.round(parseFloat(value.value) * 100) / 100).toFixed(2)
+                            }
                         }
-                      ],
-                      symbol: 'rect',
-                      symbolSize: [40, 15],
-                      label: {
-                        color: '#fff',
-                        formatter: function(value) {
-                            return (Math.round(parseFloat(value.value)*100)/100).toFixed(2)
-                        }
-                      }
                     },
                     markLine: {
-                      data: [{ type: 'average', name: '<?=$locale->msg('Vidēji')?>' }],
-                      symbol: 'none',
-                      label: {
-                        show: true,
-                        position: "insideStartTop",
-                        backgroundColor: "rgba(74, 101, 186, .3)",
-                        padding: [3, 3],
-                        // shadowColor: "ff0000",
-                      }
+                        data: [{type: 'average', name: '<?=$locale->msg('Vidēji')?>'}],
+                        symbol: 'none',
+                        label: {
+                            show: true,
+                            position: "insideStartTop",
+                            backgroundColor: "rgba(74, 101, 186, .3)",
+                            padding: [3, 3],
+                            // shadowColor: "ff0000",
+                        }
                     }
                 },
-                ]
-            };
+            ]
+        };
 
-            chart.setOption(option);
+        chart.setOption(option);
 
-            const dataset = {
-                'today': <?= json_encode(array_values($values['today'])) ?>,
-                'tomorrow': <?= json_encode(array_values($values['tomorrow'])) ?>,
-            };
-        </script>
+        const dataset = {
+            'today': <?= json_encode(array_values($values['today'])) ?>,
+            'tomorrow': <?= json_encode(array_values($values['tomorrow'])) ?>,
+        };
+    </script>
 
-        <footer>
-            <p>
-                <?php if ($with_vat) { ?>
-                    <?= $locale->msg('Price shown includes VAT') ?>
-                    (<a href="<?= $locale->route('/') ?>"><?= $locale->msg('show without VAT') ?></a>).
-                <?php } else { ?>
-                    <?= $locale->msg('Price shown is without VAT') ?>
-                    (<a href="<?= $locale->route('/?vat') ?>"><?= $locale->msg('show with VAT') ?></a>).
-                <?php } ?>
+    <footer>
+        <p>
+            <?php if ($with_vat) { ?>
+                <?= $locale->msg('Price shown includes VAT') ?>
+                (<a href="<?= $locale->route('/') ?>"><?= $locale->msg('show without VAT') ?></a>).
+            <?php } else { ?>
+                <?= $locale->msg('Price shown is without VAT') ?>
+                (<a href="<?= $locale->route('/?vat') ?>"><?= $locale->msg('show with VAT') ?></a>).
+            <?php } ?>
 
-                <?= $locale->msgf(
-                    'disclaimer',
-                    '<a href="/nordpool-' . $locale->get('code_lc') . '.csv">' .
-                        $locale->msg('normal CSV') .
-                        '</a>',
-                    '<a href="/nordpool-' . $locale->get('code_lc') . '-excel.csv">' .
-                        $locale->msg('Excel CSV') .
-                        '</a>'
-                ) ?>
-        </footer>
+            <?= $locale->msgf(
+                'disclaimer',
+                '<a href="/nordpool-' . $locale->get('code_lc') . '.csv">' .
+                $locale->msg('normal CSV') .
+                '</a>',
+                '<a href="/nordpool-' . $locale->get('code_lc') . '-excel.csv">' .
+                $locale->msg('Excel CSV') .
+                '</a>'
+            ) ?>
+    </footer>
 
-        <script>
-            document.addEventListener('DOMContentLoaded', () => {
-                // now let's highlight the current hour continuously
-                let hours = null;
-                (function updateNow() {
-                    const currentHours = (new Date('<?=$current_time->format('Y-m-d H:i:s')?>')).getHours();
-                    if (hours !== currentHours) {
-                        Array.from(document.querySelectorAll('[data-hours]')).forEach((row) => {
-                            row.classList.toggle('now', currentHours === parseInt(row.dataset.hours))
-                        })
-                        hours = currentHours;
-                    }
-                    setTimeout(updateNow, 1000);
-                })()
-
-                document.querySelectorAll('#chart-selector a').forEach(element => element.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    const day = e.target.dataset.day;
-                    chart.setOption({
-                        series: [{
-                            data: dataset[day],
-                        }]
-                    });
-                    document.querySelectorAll('#chart-selector a').forEach((el) => {
-                        el.removeAttribute('data-current');
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // now let's highlight the   hour continuously
+            let hours = null;
+            (function updateNow() {
+                const currentHours = (new Date('<?=$current_time->format('Y-m-d H:i:s')?>')).getHours();
+                if (hours !== currentHours) {
+                    Array.from(document.querySelectorAll('[data-hours]')).forEach((row) => {
+                        row.classList.toggle('now', currentHours === parseInt(row.dataset.hours))
                     })
-                    e.target.setAttribute('data-current', true);
-                }))
-            })
-        </script>
+                    hours = currentHours;
+                }
+                setTimeout(updateNow, 1000);
+            })()
 
-    </div>
+            document.querySelectorAll('#chart-selector a').forEach(element => element.addEventListener('click', (e) => {
+                e.preventDefault();
+                const day = e.target.dataset.day;
+                chart.setOption({
+                    series: [{
+                        data: dataset[day],
+                    }]
+                });
+                document.querySelectorAll('#chart-selector a').forEach((el) => {
+                    el.removeAttribute('data-current');
+                })
+                e.target.setAttribute('data-current', true);
+            }))
+        })
+    </script>
+</div>
 </body>
 
 </html>

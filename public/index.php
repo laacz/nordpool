@@ -30,19 +30,20 @@ $locale = new AppLocale($countryConfig[$country], $translations);
 
 $vat = $locale->get('vat');
 
-$current_time = new DateTimeImmutable('now', $tz_cet);
+$current_time = new DateTimeImmutable('now', $tz_riga);
 if (isset($_GET['now'])) {
-    $current_time = new DateTimeImmutable($_GET['now'], $tz_cet);
+    $current_time = new DateTimeImmutable($_GET['now'], $tz_riga);
 }
 
-$sql_time = $current_time->format('Y-m-d H:i:s');
+$current_time_cet = $current_time->setTimezone($tz_cet);
+$sql_time = $current_time_cet->format('Y-m-d H:i:s');
 
 $sql = "
 SELECT * 
   FROM spot_prices 
  WHERE country = " . $DB->quote($locale->get('code')) . " 
    AND ts_start >= DATE(" . $DB->quote($sql_time) . ", '-2 day')
-   AND ts_start <= DATE(" . $DB->quote($sql_time) . ", '+2 day')
+   AND ts_start <= DATE(" . $DB->quote($sql_time) . ", '+3 day')
 ORDER BY ts_start DESC
 ";
 
@@ -57,8 +58,6 @@ foreach ($DB->query($sql) as $row) {
         continue;
     }
 }
-
-$current_time = $current_time->setTimezone($tz_riga);
 
 $today = $prices[$current_time->format('Y-m-d')] ?? [];
 $tomorrow = $prices[$current_time->modify('+1 day')->format('Y-m-d')] ?? [];

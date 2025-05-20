@@ -497,10 +497,10 @@ asort($hours);
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            // now let's highlight the   hour continuously
+            // now let's highlight the hour continuously
             let hours = null;
             (function updateNow() {
-                const currentHours = (new Date('<?=$current_time->format('Y-m-d H:i:s')?>')).getHours();
+                const currentHours = (new Date()).getHours();
                 if (hours !== currentHours) {
                     Array.from(document.querySelectorAll('[data-hours]')).forEach((row) => {
                         row.classList.toggle('now', currentHours === parseInt(row.dataset.hours))

@@ -190,7 +190,7 @@ class AppLocale
             $this->config['locale'],
             IntlDateFormatter::FULL,
             IntlDateFormatter::NONE,
-            null,
+            'Europe/Riga',
             null,
             'd.m.Y H:i'
         );

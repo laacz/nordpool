@@ -1,5 +1,5 @@
 <?php
-require('functions.php');
+require 'functions.php';
 
 if (php_sapi_name() == 'cli-server') {
     $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
@@ -28,6 +28,7 @@ if (!isset($countryConfig[$country])) {
 
 $locale = new AppLocale($countryConfig[$country], $translations);
 
+/** @var float $vat */
 $vat = $locale->get('vat');
 
 $current_time = new DateTimeImmutable('now', $tz_riga);
@@ -39,13 +40,24 @@ $current_time_cet = $current_time->setTimezone($tz_cet);
 $sql_time = $current_time_cet->format('Y-m-d H:i:s');
 
 $sql = "
-SELECT * 
-  FROM spot_prices 
- WHERE country = " . $DB->quote($locale->get('code')) . " 
+SELECT *
+  FROM price_indices
+ WHERE country = " . $DB->quote($locale->get('code')) . "
    AND ts_start >= DATE(" . $DB->quote($sql_time) . ", '-2 day')
    AND ts_start <= DATE(" . $DB->quote($sql_time) . ", '+3 day')
+   AND resolution_minutes = 60
 ORDER BY ts_start DESC
 ";
+
+// $sql = "
+// SELECT *
+//   FROM spot_prices
+//  WHERE country = " . $DB->quote($locale->get('code')) . "
+//    AND ts_start >= DATE(" . $DB->quote($sql_time) . ", '-2 day')
+//    AND ts_start <= DATE(" . $DB->quote($sql_time) . ", '+3 day')
+// ORDER BY ts_start DESC
+// ";
+
 
 foreach ($DB->query($sql) as $row) {
     try {
@@ -303,13 +315,11 @@ asort($hours);
             <th><?= $locale->msg('Šodien') ?>
                 <span class="help"><?= $locale->formatDate($current_time, 'd. MMM') ?></span><br/>
                 <small><?= $locale->msg('Vidēji') ?> <span><?= $today_avg ? format($today_avg) : '—' ?></span></small>
-                </small>
             </th>
             <th><?= $locale->msg('Rīt') ?>
                 <span
                         class="help"><?= $locale->formatDate($current_time->modify('+1 day'), 'd. MMM') ?></span><br/>
-                <small><?= $locale->msg('Vidēji') ?> <span><?= $tomorrow_avg ? format($tomorrow_avg) : '—' ?></span>
-                </small>
+                <small><?= $locale->msg('Vidēji') ?> <span><?= $tomorrow_avg ? format($tomorrow_avg) : '—' ?></span></small>
             </th>
         </tr>
         </thead>
@@ -385,11 +395,10 @@ asort($hours);
                     strValue += '<small>';
                     strValue += value.toString().substring(4).padEnd(2, '0');
                     strValue += '</small> €/kWh'
-                    let html = `
+                    return `
                         ${('' + hour).padStart(2, '0')}:00 - ${('' + (hour + 1) % 24).padStart(2, '0')}:00<br/>
                         ${strValue}
                         `;
-                    return html;
                 },
                 axisPointer: {
                     type: 'cross',

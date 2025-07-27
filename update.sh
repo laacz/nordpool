@@ -1,4 +1,5 @@
 ./nordpool update >/dev/null && (
+    ./nordpool update-indices
     ./nordpool csv >public/nordpool.csv.new
     ./nordpool excel >public/nordpool-excel.csv.new 
     

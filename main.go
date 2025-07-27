@@ -15,10 +15,46 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
+func initDatabase(db *sql.DB) error {
+	queries := []string{
+		`CREATE TABLE IF NOT EXISTS spot_prices (
+    		ts_start timestamp NOT NULL,
+			ts_end timestamp NOT NULL,
+			value decimal(10, 2) NOT NULL,
+			country varchar(2) NOT NULL,
+			created_at timestamp DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE(country, ts_start, ts_end)
+		)`,
+		`CREATE TABLE IF NOT EXISTS price_indices (
+			ts_start timestamp NOT NULL,
+			ts_end timestamp NOT NULL,
+			value decimal(10, 2) NOT NULL,
+			country varchar(2) NOT NULL,
+			resolution_minutes integer NOT NULL,
+			created_at timestamp DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE(country, ts_start, ts_end, resolution_minutes)
+		)`,
+	}
+
+	for _, query := range queries {
+		_, err := db.Exec(query)
+		if err != nil {
+			return fmt.Errorf("error executing query: %s, %w", query, err)
+		}
+	}
+
+	return nil
+}
+
 func main() {
 	db, err := sql.Open("sqlite3", "./nordpool.db")
 	if err != nil {
 		log.Fatalf("Error opening database: %s", err)
+	}
+
+	err = initDatabase(db)
+	if err != nil {
+		log.Fatalf("Error initializing database: %s", err)
 	}
 
 	if len(os.Args) > 1 {
@@ -42,6 +78,8 @@ func main() {
 			if err != nil {
 				log.Fatalf("Error parsing date: %s", err)
 			}
+
+			log.Printf("Fetching data for %s", endDate.Format("2006-01-02"))
 
 			retry := 0
 			var data []byte
@@ -77,9 +115,57 @@ func main() {
 					}
 				}
 			}
+		} else if os.Args[1] == "update-indices" {
+
+			endDate, err := inferEndDate()
+			if err != nil {
+				log.Fatalf("Error parsing date: %s", err)
+			}
+
+			log.Printf("Fetching data for %s", endDate.Format("2006-01-02"))
+
+			for _, resolution := range []int{15, 60} {
+				retry := 0
+				var data []byte
+				for retry < 5 {
+					data, err = fetchAggregationData(endDate, resolution)
+					if err == nil {
+						break
+					}
+					retry++
+					log.Printf("Error fetching aggregation data for %dmin resolution, retrying %d: %s", resolution, retry, err)
+					time.Sleep(time.Second * 5)
+				}
+				if err != nil {
+					log.Printf("Error fetching aggregation data for %dmin resolution: %s", resolution, err)
+					continue
+				}
+
+				if len(data) == 0 {
+					log.Printf("No data returned for %dmin resolution", resolution)
+					continue
+				}
+
+				var aggregation AggregationData
+				err = json.Unmarshal(data, &aggregation)
+				if err != nil {
+					log.Printf("Error parsing aggregation JSON for %dmin resolution: %s", resolution, err)
+					continue
+				}
+
+				for _, country := range []string{"LV", "LT", "EE"} {
+					prices := aggregation.Convert(country)
+					for _, price := range prices {
+						err = price.Store(db, country)
+						if err != nil {
+							log.Printf("Error storing aggregation price: %s", err)
+						}
+					}
+				}
+			}
 		}
 	} else {
-		fmt.Println("Usage: nordpool [csv|excel|update] [date]")
+		fmt.Println("Usage: nordpool [csv|excel|update|update-indices] [date]")
 	}
 
 }
@@ -136,6 +222,22 @@ type NordpoolData struct {
 	} `json:"multiAreaEntries"`
 }
 
+// AggregationData represents the JSON structure returned by the DayAheadPriceIndices API
+type AggregationData struct {
+	DeliveryDateCet     string   `json:"deliveryDateCET"`
+	Version             int      `json:"version"`
+	UpdatedAt           string   `json:"updatedAt"`
+	Market              string   `json:"market"`
+	IndexNames          []string `json:"indexNames"`
+	Currency            string   `json:"currency"`
+	ResolutionInMinutes int      `json:"resolutionInMinutes"`
+	MultiIndexEntries   []struct {
+		DeliveryStart string             `json:"deliveryStart"`
+		DeliveryEnd   string             `json:"deliveryEnd"`
+		EntryPerArea  map[string]float64 `json:"entryPerArea"`
+	} `json:"multiIndexEntries"`
+}
+
 func (n *NordpoolData) Convert(country string) []SpotPrice {
 	ret := make([]SpotPrice, 0)
 	for _, entry := range n.MultiAreaEntries {
@@ -158,16 +260,57 @@ func (n *NordpoolData) Convert(country string) []SpotPrice {
 	return ret
 }
 
+func (a *AggregationData) Convert(country string) []AggregationPrice {
+	ret := make([]AggregationPrice, 0)
+	for _, entry := range a.MultiIndexEntries {
+		price := entry.EntryPerArea[country]
+
+		startTime, err := time.Parse("2006-01-02T15:04:05Z", entry.DeliveryStart)
+		if err != nil {
+			log.Panicf("Error parsing start time: %s", err)
+		}
+		endTime, err := time.Parse("2006-01-02T15:04:05Z", entry.DeliveryEnd)
+		if err != nil {
+			log.Panicf("Error parsing end time: %s", err)
+		}
+		ret = append(ret, AggregationPrice{
+			StartTime:           startTime,
+			EndTime:             endTime,
+			Price:               price,
+			ResolutionInMinutes: a.ResolutionInMinutes,
+		})
+	}
+	return ret
+}
+
 type SpotPrice struct {
 	StartTime time.Time
 	EndTime   time.Time
 	Price     float64
 }
 
+type AggregationPrice struct {
+	StartTime           time.Time
+	EndTime             time.Time
+	Price               float64
+	ResolutionInMinutes int
+}
+
 // Store stores a SpotPrice in the database, ignoring existing entries
 func (price *SpotPrice) Store(db *sql.DB, country string) error {
 	fmt.Println(country, price)
 	_, err := db.Exec("INSERT OR IGNORE INTO spot_prices (ts_start, ts_end, value, country) VALUES (?, ?, ?, ?)", price.StartTime, price.EndTime, price.Price, country)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// Store stores an AggregationPrice in the database, ignoring existing entries
+func (price *AggregationPrice) Store(db *sql.DB, country string) error {
+	fmt.Println(country, price)
+	_, err := db.Exec("INSERT OR IGNORE INTO price_indices (ts_start, ts_end, value, country, resolution_minutes) VALUES (?, ?, ?, ?, ?)",
+		price.StartTime, price.EndTime, price.Price, country, price.ResolutionInMinutes)
 	if err != nil {
 		return err
 	}
@@ -189,28 +332,8 @@ func inferEndDate() (*time.Time, error) {
 	return &ret, nil
 }
 
-// fetch fetches the data from the Nordpool API
-func fetch(endDate *time.Time) ([]byte, error) {
-	// https://dataportal-api.nordpoolgroup.com/api/DayAheadPrices?date=2024-10-15&market=DayAhead&deliveryArea=LV&currency=EUR
-	// url := fmt.Sprintf("https://www.nordpoolgroup.com/api/marketdata/page/59?currency=,EUR,EUR,EUR&endDate=%s", endDate.Format("02-01-2006"))
-
-	// ```command
-	// curl 'https://dataportal-api.nordpoolgroup.com/api/DayAheadPrices?date=2025-04-01&market=DayAhead&deliveryArea=EE,LT,AT&currency=EUR' \
-	// -H 'accept: application/json, text/plain, */*' \
-	// -H 'accept-language: en,lv;q=0.9,en-GB;q=0.8' \
-	// -H 'origin: https://data.nordpoolgroup.com' \
-	// -H 'priority: u=1, i' \
-	// -H 'referer: https://data.nordpoolgroup.com/' \
-	// -H 'sec-ch-ua: "Google Chrome";v="135", "Not-A.Brand";v="8", "Chromium";v="135"' \
-	// -H 'sec-ch-ua-mobile: ?0' \
-	// -H 'sec-ch-ua-platform: "Windows"' \
-	// -H 'sec-fetch-dest: empty' \
-	// -H 'sec-fetch-mode: cors' \
-	// -H 'sec-fetch-site: same-site' \
-	// -H 'user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36'
-	// ```
-	url := fmt.Sprintf("https://dataportal-api.nordpoolgroup.com/api/DayAheadPrices?date=%s&market=DayAhead&deliveryArea=LV,EE,LT&currency=EUR", endDate.Format("2006-01-02"))
-
+// makeHTTPRequest creates a common HTTP request with standard headers
+func makeHTTPRequest(url string) ([]byte, error) {
 	c := &http.Client{}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -243,4 +366,17 @@ func fetch(endDate *time.Time) ([]byte, error) {
 	}(resp.Body)
 
 	return io.ReadAll(resp.Body)
+}
+
+// fetch fetches the data from the Nordpool API
+func fetch(endDate *time.Time) ([]byte, error) {
+	url := fmt.Sprintf("https://dataportal-api.nordpoolgroup.com/api/DayAheadPrices?date=%s&market=DayAhead&deliveryArea=LV,EE,LT&currency=EUR", endDate.Format("2006-01-02"))
+	return makeHTTPRequest(url)
+}
+
+// fetchAggregationData fetches data from the DayAheadPriceIndices API for all countries
+func fetchAggregationData(endDate *time.Time, resolutionMinutes int) ([]byte, error) {
+	url := fmt.Sprintf("https://dataportal-api.nordpoolgroup.com/api/DayAheadPriceIndices?date=%s&market=DayAhead&indexNames=LV,LT,EE&currency=EUR&resolutionInMinutes=%d",
+		endDate.Format("2006-01-02"), resolutionMinutes)
+	return makeHTTPRequest(url)
 }

@@ -296,7 +296,7 @@ type AggregationPrice struct {
 
 // Store stores a SpotPrice in the database, ignoring existing entries
 func (price *SpotPrice) Store(db *sql.DB, country string) error {
-	fmt.Println(country, price)
+	//fmt.Println(country, price)
 	_, err := db.Exec("INSERT OR IGNORE INTO spot_prices (ts_start, ts_end, value, country) VALUES (?, ?, ?, ?)", price.StartTime, price.EndTime, price.Price, country)
 	if err != nil {
 		return err
@@ -306,7 +306,7 @@ func (price *SpotPrice) Store(db *sql.DB, country string) error {
 
 // Store stores an AggregationPrice in the database, ignoring existing entries
 func (price *AggregationPrice) Store(db *sql.DB, country string) error {
-	fmt.Println(country, price)
+	//fmt.Println(country, price)
 	_, err := db.Exec("INSERT OR IGNORE INTO price_indices (ts_start, ts_end, value, country, resolution_minutes) VALUES (?, ?, ?, ?, ?)",
 		price.StartTime, price.EndTime, price.Price, country, price.ResolutionInMinutes)
 	if err != nil {

@@ -120,7 +120,7 @@ func main() {
 				log.Fatalf("Error parsing date: %s", err)
 			}
 
-			log.Printf("Fetching data for %s", endDate.Format("2006-01-02"))
+			//log.Printf("Fetching data for %s", endDate.Format("2006-01-02"))
 
 			for _, resolution := range []int{15, 60} {
 				retry := 0

@@ -186,6 +186,16 @@ function getTranslations(): array
             'LT' => 'rodyti 15min',
             'EE' => 'näita 15min',
         ],
+        '1h average' => [
+            'LV' => '1h vidējie dati',
+            'LT' => '1h vidutiniai duomenys',
+            'EE' => '1h keskmised andmed',
+        ],
+        '15min data' => [
+            'LV' => '15min dati',
+            'LT' => '15min duomenys',
+            'EE' => '15min andmed',
+        ],
     ];
 }
 

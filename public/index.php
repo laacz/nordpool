@@ -115,7 +115,7 @@ asort($hours);
 
 ?>
 <!doctype html>
-<html lang="<?= strtolower($locale->get('code_lc')) ?>">
+<html lang="<?=strtolower($locale->get('code_lc'))?>">
 
 <head>
     <!-- Google tag (gtag.js) -->
@@ -126,6 +126,7 @@ asort($hours);
         function gtag() {
             dataLayer.push(arguments);
         }
+
         gtag('js', new Date());
         gtag('config', 'G-CRFT0MS7XN');
     </script>
@@ -133,7 +134,7 @@ asort($hours);
     <meta name="viewport"
           content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <title><?= $locale->msg('title') ?></title>
+    <title><?=$locale->msg('title')?></title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fira+Sans:wght@100;400;700&display=swap" rel="stylesheet">
@@ -157,19 +158,19 @@ asort($hours);
         }
 
         .notice {
-          background-color: #e3f2fd;
-          border-left: 4px solid #2196f3;
-          padding: 16px 20px;
-          margin: 16px 0;
-          border-radius: 4px;
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            background-color: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 16px 20px;
+            margin: 16px 0;
+            border-radius: 4px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         }
 
         .notice p {
-          margin: 0;
-          color: #1565c0;
-          font-size: 14px;
-          line-height: 1.5;
+            margin: 0;
+            color: #1565c0;
+            font-size: 14px;
+            line-height: 1.5;
         }
 
         #app footer p {
@@ -261,7 +262,7 @@ asort($hours);
 
         .extra-decimals {
             opacity: .4;
-            font-size:70%;
+            font-size: 70%;
         }
 
         header {
@@ -369,7 +370,7 @@ asort($hours);
     </style>
 </head>
 
-<body<?= $resolution == 60 ? ' class="res-60"' : '' ?>>
+<body<?=$resolution == 60 ? ' class="res-60"' : ''?>>
 
 <div id="app">
 
@@ -379,33 +380,33 @@ asort($hours);
         </h1>
         <p>
             <?php foreach ($countryConfig as $code => $config) { ?>
-                <a class="flag" href="/<?= $config['code_lc'] === 'lv' ? '' : $config['code_lc'] ?>"><img
-                            src="/<?= $config['code_lc'] ?>.svg" alt="<?= $config['name'] ?>" width="32"
+                <a class="flag" href="/<?=$config['code_lc'] === 'lv' ? '' : $config['code_lc']?>"><img
+                            src="/<?=$config['code_lc']?>.svg" alt="<?=$config['name']?>" width="32"
                             height="32"/></a>
             <?php } ?>
             <br/>
-            <?= $locale->msg('subtitle') ?><br/>
+            <?=$locale->msg('subtitle')?><br/>
             <?php if ($with_vat) { ?>
-                <?= $locale->msg('it is with VAT') ?> <?= round($vat * 100) ?>% (<a
-                        href="<?= $locale->route('/') . ($resolution == 60 ? '?res=60' : '') ?>"><?= $locale->msg('show without VAT') ?></a>)
+                <?=$locale->msg('it is with VAT')?> <?=round($vat * 100)?>% (<a
+                        href="<?=$locale->route('/') . ($resolution == 60 ? '?res=60' : '')?>"><?=$locale->msg('show without VAT')?></a>)
             <?php } else { ?>
-                <?= $locale->msg('it is without VAT') ?> <?= round($vat * 100) ?>% (<a
-                        href="<?= $locale->route('/?vat') . ($resolution == 60 ? '&res=60' : '') ?>"><?= $locale->msg('show with VAT') ?></a>)
+                <?=$locale->msg('it is without VAT')?> <?=round($vat * 100)?>% (<a
+                        href="<?=$locale->route('/?vat') . ($resolution == 60 ? '&res=60' : '')?>"><?=$locale->msg('show with VAT')?></a>)
             <?php } ?>
             <br/>
             <?php if ($resolution == 15) { ?>
-                <?= $locale->msg('Resolution') ?>: <strong>15min</strong> (<a
-                        href="<?= $locale->route('/' . ($with_vat ? '?vat&res=60' : '?res=60')) ?>"><?= $locale->msg('show 1h') ?></a>)
+                <?=$locale->msg('Resolution')?>: <strong>15min</strong> (<a
+                        href="<?=$locale->route('/' . ($with_vat ? '?vat&res=60' : '?res=60'))?>"><?=$locale->msg('show 1h')?></a>)
             <?php } else { ?>
-                <?= $locale->msg('Resolution') ?>: <strong>1h</strong> (<a
-                        href="<?= $locale->route('/' . ($with_vat ? '?vat' : '')) ?>"><?= $locale->msg('show 15min') ?></a>)
+                <?=$locale->msg('Resolution')?>: <strong>1h</strong> (<a
+                        href="<?=$locale->route('/' . ($with_vat ? '?vat' : ''))?>"><?=$locale->msg('show 15min')?></a>)
             <?php } ?>
         </p>
     </header>
 
     <?php if (date('Y-m-d') < '2025-10-08') { ?>
         <div class="notice">
-            <p><?= $locale->msg('15min notice') ?></p>
+            <p><?=$locale->msg('15min notice')?></p>
         </div>
     <?php } ?>
 
@@ -427,14 +428,14 @@ asort($hours);
         <thead>
         <tr>
             <th></th>
-            <th colspan="<?= $quarters_per_hour ?>"><?= $locale->msg('Šodien') ?>
-                <span class="help"><?= $locale->formatDate($current_time, 'd. MMM') ?></span><br/>
-                <small><?= $locale->msg('Vidēji') ?> <span><?= $today_avg ? format($today_avg) : '—' ?></span></small>
+            <th colspan="<?=$quarters_per_hour?>"><?=$locale->msg('Šodien')?>
+                <span class="help"><?=$locale->formatDate($current_time, 'd. MMM')?></span><br/>
+                <small><?=$locale->msg('Vidēji')?> <span><?=$today_avg ? format($today_avg) : '—'?></span></small>
             </th>
-            <th colspan="<?= $quarters_per_hour ?>"><?= $locale->msg('Rīt') ?>
+            <th colspan="<?=$quarters_per_hour?>"><?=$locale->msg('Rīt')?>
                 <span
-                        class="help"><?= $locale->formatDate($current_time->modify('+1 day'), 'd. MMM') ?></span><br/>
-                <small><?= $locale->msg('Vidēji') ?> <span><?= $tomorrow_avg ? format($tomorrow_avg) : '—' ?></span></small>
+                        class="help"><?=$locale->formatDate($current_time->modify('+1 day'), 'd. MMM')?></span><br/>
+                <small><?=$locale->msg('Vidēji')?> <span><?=$tomorrow_avg ? format($tomorrow_avg) : '—'?></span></small>
             </th>
         </tr>
         <tr>
@@ -475,8 +476,8 @@ asort($hours);
         <?php for ($hour = 0; $hour < 24; $hour++) {
             $hour_label = sprintf('%02d', $hour) . '-' . sprintf('%02d', ($hour + 1) % 24);
             ?>
-            <tr data-hours="<?= $hour ?>">
-                <th><?= $hour_label ?></th>
+            <tr data-hours="<?=$hour?>">
+                <th><?=$hour_label?></th>
                 <?php
                 // Process quarters for today with colspan logic
                 $q = 0;
@@ -496,10 +497,10 @@ asort($hours);
                         }
                     }
                     ?>
-                    <td class="price today quarter-<?= $q ?>" data-quarter="<?= $q ?>"
-                        <?php if ($colspan > 1) { ?>colspan="<?= $colspan ?>"<?php } ?>
-                        style="background-color: <?= getColorPercentage($value ?? -9999, $today_min, $today_max) ?>">
-                        <?= isset($value) ? format($value) : '-' ?>
+                    <td class="price today quarter-<?=$q?>" data-quarter="<?=$q?>"
+                        <?php if ($colspan > 1) { ?>colspan="<?=$colspan?>"<?php } ?>
+                        style="background-color: <?=getColorPercentage($value ?? -9999, $today_min, $today_max)?>">
+                        <?=isset($value) ? format($value) : '-'?>
                     </td>
                     <?php
                     $q = $next_q;
@@ -524,10 +525,10 @@ asort($hours);
                         }
                     }
                     ?>
-                    <td class="price tomorrow quarter-<?= $q ?>" data-quarter="<?= $q ?>"
-                        <?php if ($colspan > 1) { ?>colspan="<?= $colspan ?>"<?php } ?>
-                        style="<?= isset($value) ? '' : 'text-align: center; ' ?>background-color: <?= getColorPercentage($value ?? -9999, $tomorrow_min, $tomorrow_max) ?>">
-                        <?= isset($value) ? format($value) : '-' ?>
+                    <td class="price tomorrow quarter-<?=$q?>" data-quarter="<?=$q?>"
+                        <?php if ($colspan > 1) { ?>colspan="<?=$colspan?>"<?php } ?>
+                        style="<?=isset($value) ? '' : 'text-align: center; '?>background-color: <?=getColorPercentage($value ?? -9999, $tomorrow_min, $tomorrow_max)?>">
+                        <?=isset($value) ? format($value) : '-'?>
                     </td>
                     <?php
                     $q = $next_q;
@@ -547,17 +548,17 @@ asort($hours);
     <!-- Mobile tables -->
     <div class="mobile-tables">
         <?php if ($resolution == 15) { ?>
-        <div id="mobile-selector">
-            <a href="#" data-day="today" data-current><?= $locale->msg('Šodien') ?></a>
-            <a href="#" data-day="tomorrow"><?= $locale->msg('Rīt') ?></a>
-        </div>
+            <div id="mobile-selector">
+                <a href="#" data-day="today" data-current><?=$locale->msg('Šodien')?></a>
+                <a href="#" data-day="tomorrow"><?=$locale->msg('Rīt')?></a>
+            </div>
         <?php } ?>
         <table class="mobile-table" data-day="today">
             <thead>
             <tr>
-                <th colspan="<?= $quarters_per_hour + 1 ?>"><?= $locale->msg('Šodien') ?>
-                    <span class="help"><?= $locale->formatDate($current_time, 'd. MMM') ?></span><br/>
-                    <small><?= $locale->msg('Vidēji') ?> <span><?= $today_avg ? format($today_avg) : '—' ?></span></small>
+                <th colspan="<?=$quarters_per_hour + 1?>"><?=$locale->msg('Šodien')?>
+                    <span class="help"><?=$locale->formatDate($current_time, 'd. MMM')?></span><br/>
+                    <small><?=$locale->msg('Vidēji')?> <span><?=$today_avg ? format($today_avg) : '—'?></span></small>
                 </th>
             </tr>
             <tr>
@@ -576,8 +577,8 @@ asort($hours);
             <?php for ($hour = 0; $hour < 24; $hour++) {
                 $hour_label = sprintf('%02d', $hour) . '-' . sprintf('%02d', ($hour + 1) % 24);
                 ?>
-                <tr data-hours="<?= $hour ?>" data-day="today">
-                    <th><?= $hour_label ?></th>
+                <tr data-hours="<?=$hour?>" data-day="today">
+                    <th><?=$hour_label?></th>
                     <?php
                     // Process quarters for today with colspan logic
                     $q = 0;
@@ -597,10 +598,10 @@ asort($hours);
                             }
                         }
                         ?>
-                        <td class="price quarter-<?= $q ?>" data-quarter="<?= $q ?>"
-                            <?php if ($colspan > 1) { ?>colspan="<?= $colspan ?>"<?php } ?>
-                            style="background-color: <?= getColorPercentage($value ?? -9999, $today_min, $today_max) ?>">
-                            <?= isset($value) ? format($value) : '-' ?>
+                        <td class="price quarter-<?=$q?>" data-quarter="<?=$q?>"
+                            <?php if ($colspan > 1) { ?>colspan="<?=$colspan?>"<?php } ?>
+                            style="background-color: <?=getColorPercentage($value ?? -9999, $today_min, $today_max)?>">
+                            <?=isset($value) ? format($value) : '-'?>
                         </td>
                         <?php
                         $q = $next_q;
@@ -611,12 +612,13 @@ asort($hours);
             </tbody>
         </table>
 
-        <table class="mobile-table<?= $resolution == 15 ? ' hidden' : '' ?>" data-day="tomorrow">
+        <table class="mobile-table<?=$resolution == 15 ? ' hidden' : ''?>" data-day="tomorrow">
             <thead>
             <tr>
-                <th colspan="<?= $quarters_per_hour + 1 ?>"><?= $locale->msg('Rīt') ?>
-                    <span class="help"><?= $locale->formatDate($current_time->modify('+1 day'), 'd. MMM') ?></span><br/>
-                    <small><?= $locale->msg('Vidēji') ?> <span><?= $tomorrow_avg ? format($tomorrow_avg) : '—' ?></span></small>
+                <th colspan="<?=$quarters_per_hour + 1?>"><?=$locale->msg('Rīt')?>
+                    <span class="help"><?=$locale->formatDate($current_time->modify('+1 day'), 'd. MMM')?></span><br/>
+                    <small><?=$locale->msg('Vidēji')?>
+                        <span><?=$tomorrow_avg ? format($tomorrow_avg) : '—'?></span></small>
                 </th>
             </tr>
             <tr>
@@ -635,8 +637,8 @@ asort($hours);
             <?php for ($hour = 0; $hour < 24; $hour++) {
                 $hour_label = sprintf('%02d', $hour) . '-' . sprintf('%02d', ($hour + 1) % 24);
                 ?>
-                <tr data-hours="<?= $hour ?>" data-day="tomorrow">
-                    <th><?= $hour_label ?></th>
+                <tr data-hours="<?=$hour?>" data-day="tomorrow">
+                    <th><?=$hour_label?></th>
                     <?php
                     // Process quarters for tomorrow with colspan logic
                     $q = 0;
@@ -656,10 +658,10 @@ asort($hours);
                             }
                         }
                         ?>
-                        <td class="price quarter-<?= $q ?>" data-quarter="<?= $q ?>"
-                            <?php if ($colspan > 1) { ?>colspan="<?= $colspan ?>"<?php } ?>
-                            style="<?= isset($value) ? '' : 'text-align: center; ' ?>background-color: <?= getColorPercentage($value ?? -9999, $tomorrow_min, $tomorrow_max) ?>">
-                            <?= isset($value) ? format($value) : '-' ?>
+                        <td class="price quarter-<?=$q?>" data-quarter="<?=$q?>"
+                            <?php if ($colspan > 1) { ?>colspan="<?=$colspan?>"<?php } ?>
+                            style="<?=isset($value) ? '' : 'text-align: center; '?>background-color: <?=getColorPercentage($value ?? -9999, $tomorrow_min, $tomorrow_max)?>">
+                            <?=isset($value) ? format($value) : '-'?>
                         </td>
                         <?php
                         $q = $next_q;
@@ -672,15 +674,15 @@ asort($hours);
     </div>
 
     <p id="legend">
-        <span class="legend bad"><?= $locale->msg('Izvairāmies tērēt elektrību') ?></span> <span
-                class="legend good"><?= $locale->msg('Krājam burciņā') ?></span>
+        <span class="legend bad"><?=$locale->msg('Izvairāmies tērēt elektrību')?></span> <span
+                class="legend good"><?=$locale->msg('Krājam burciņā')?></span>
     </p>
 
     <div id="chart-selector">
-        <h2><?= $locale->msg('Primitīvs grafiks') ?></h2>
+        <h2><?=$locale->msg('Primitīvs grafiks')?></h2>
         <p>
-            <a href="#" data-day="today" data-current><?= $locale->msg('Šodien') ?></a>
-            <a href="#" data-day="tomorrow"><?= $locale->msg('Rīt') ?></a>
+            <a href="#" data-day="today" data-current><?=$locale->msg('Šodien')?></a>
+            <a href="#" data-day="tomorrow"><?=$locale->msg('Rīt')?></a>
         </p>
     </div>
 
@@ -818,38 +820,22 @@ asort($hours);
     <footer>
         <p>
             <?php if ($with_vat) { ?>
-                <?= $locale->msg('Price shown includes VAT') ?>
-                (<a href="<?= $locale->route('/') ?>"><?= $locale->msg('show without VAT') ?></a>).
+                <?=$locale->msg('Price shown includes VAT')?>
+                (<a href="<?=$locale->route('/')?>"><?=$locale->msg('show without VAT')?></a>).
             <?php } else { ?>
-                <?= $locale->msg('Price shown is without VAT') ?>
-                (<a href="<?= $locale->route('/?vat') ?>"><?= $locale->msg('show with VAT') ?></a>).
+                <?=$locale->msg('Price shown is without VAT')?>
+                (<a href="<?=$locale->route('/?vat')?>"><?=$locale->msg('show with VAT')?></a>).
             <?php } ?>
 
-            <?php if ($resolution == 15) { ?>
-                <?= $locale->msgf(
+            <?=$locale->msgf(
                     'disclaimer',
-                    '<a href="/nordpool-' . $locale->get('code_lc') . '.csv">' .
                     $locale->msg('normal CSV') .
-                    '</a> (<a href="/nordpool-' . $locale->get('code_lc') . '-1h.csv">' .
-                    $locale->msg('1h average') .
-                    '</a>)',
-                    '<a href="/nordpool-' . $locale->get('code_lc') . '-excel.csv">' .
+                    ' (<a href="/nordpool-' . $locale->get('code_lc') . '.csv">' . $locale->msg("15min data") . '</a>, ' .
+                    '<a href="/nordpool-' . $locale->get('code_lc') . '-1h.csv">' . $locale->msg('1h average') . '</a>)',
                     $locale->msg('Excel CSV') .
-                    '</a> (<a href="/nordpool-' . $locale->get('code_lc') . '-1h-excel.csv">' .
-                    $locale->msg('1h average Excel') .
-                    '</a>)'
-                ) ?>
-            <?php } else { ?>
-                <?= $locale->msgf(
-                    'disclaimer',
-                    '<a href="/nordpool-' . $locale->get('code_lc') . '-1h.csv">' .
-                    $locale->msg('normal CSV') .
-                    '</a>',
-                    '<a href="/nordpool-' . $locale->get('code_lc') . '-1h-excel.csv">' .
-                    $locale->msg('Excel CSV') .
-                    '</a>'
-                ) ?>
-            <?php } ?>
+                    ' (<a href="/nordpool-' . $locale->get('code_lc') . '-excel.csv">' . $locale->msg("15min data") . '</a>, ' .
+                    '<a href="/nordpool-' . $locale->get('code_lc') . '-1h-excel.csv">' . $locale->msg('1h average') . '</a>)'
+            )?>
     </footer>
 
     <script>

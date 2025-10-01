@@ -57,21 +57,27 @@ func main() {
 		log.Fatalf("Error initializing database: %s", err)
 	}
 
+	country := "LV"
+	resolution := 60
 	if len(os.Args) > 1 {
 		if os.Args[1] == "csv" {
-			country := "LV"
 			if len(os.Args) > 2 {
 				country = strings.ToUpper(os.Args[2])
 			}
+			if len(os.Args) > 3 {
+				fmt.Sscanf(os.Args[3], "%d", &resolution)
+			}
 
-			writeCsv(db, ",", country)
+			writeCsv(db, ",", country, resolution)
 		} else if os.Args[1] == "excel" {
-			country := "LV"
 			if len(os.Args) > 2 {
 				country = strings.ToUpper(os.Args[2])
 			}
+			if len(os.Args) > 3 {
+				fmt.Sscanf(os.Args[3], "%d", &resolution)
+			}
 
-			writeCsv(db, ";", country)
+			writeCsv(db, ";", country, resolution)
 		} else if os.Args[1] == "update" {
 
 			endDate, err := inferEndDate()
@@ -168,8 +174,8 @@ func main() {
 
 }
 
-func writeCsv(db *sql.DB, separator string, country string) {
-	res, err := db.Query("SELECT ts_start, ts_end, value FROM spot_prices WHERE country = ? order by ts_start desc", country)
+func writeCsv(db *sql.DB, separator string, country string, resolution int) {
+	res, err := db.Query("SELECT ts_start, ts_end, value FROM price_indices WHERE country = ? AND resolution_minutes = ? order by ts_start desc", country, resolution)
 	if err != nil {
 		log.Fatalf("Error querying database: %s", err)
 	}
@@ -194,7 +200,7 @@ func writeCsv(db *sql.DB, separator string, country string) {
 			log.Fatalf("Error parsing start time: %s", err)
 		}
 
-		price.EndTime, err = time.ParseInLocation("2006-01-02 15:04:05-07:00", tsEnd, time.UTC)
+		price.EndTime, err = time.ParseInLocation("2006-01-02T15:04:05Z", tsEnd, time.UTC)
 		if err != nil {
 			log.Fatalf("Error parsing end time: %s", err)
 		}

@@ -677,10 +677,10 @@ asort($hours);
 
             <?= $locale->msgf(
                 'disclaimer',
-                '<a href="/nordpool-' . $locale->get('code_lc') . '.csv">' .
+                '<a href="/nordpool-' . $locale->get('code_lc') . '-15.csv">' .
                 $locale->msg('normal CSV') .
                 '</a>',
-                '<a href="/nordpool-' . $locale->get('code_lc') . '-excel.csv">' .
+                '<a href="/nordpool-' . $locale->get('code_lc') . '-excel-15.csv">' .
                 $locale->msg('Excel CSV') .
                 '</a>'
             ) ?>

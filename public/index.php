@@ -194,7 +194,7 @@ asort($hours);
 
 
         #app {
-            width: 40rem;
+            width: 50rem;
             max-width: 95%;
             margin: 0 auto;
         }
@@ -204,10 +204,10 @@ asort($hours);
         }
 
         table {
+            table-layout: fixed;
+            width: 100%;
             border-collapse: collapse;
             margin: 0 auto;
-            /*width: 100%;*/
-            width: auto;
         }
 
         th,
@@ -217,12 +217,7 @@ asort($hours);
         }
 
         table tbody tr th {
-            width: 1%;
             white-space: nowrap;
-        }
-
-        tbody td {
-            width: 50%;
         }
 
         tr.now {
@@ -232,6 +227,10 @@ asort($hours);
         td.now-quarter {
             outline: 3px solid #ff0;
             outline-offset: -3px;
+        }
+
+        td.tomorrow.quarter-0 {
+            border-left: 10px solid #fff;
         }
 
         .price {
@@ -474,7 +473,7 @@ asort($hours);
                         }
                     }
                     ?>
-                    <td class="price quarter-<?= $q ?>" data-quarter="<?= $q ?>"
+                    <td class="price today quarter-<?= $q ?>" data-quarter="<?= $q ?>"
                         <?php if ($colspan > 1) { ?>colspan="<?= $colspan ?>"<?php } ?>
                         style="background-color: <?= getColorPercentage($value ?? -9999, $today_min, $today_max) ?>">
                         <?= isset($value) ? format($value) : '-' ?>
@@ -502,7 +501,7 @@ asort($hours);
                         }
                     }
                     ?>
-                    <td class="price quarter-<?= $q ?>" data-quarter="<?= $q ?>"
+                    <td class="price tomorrow quarter-<?= $q ?>" data-quarter="<?= $q ?>"
                         <?php if ($colspan > 1) { ?>colspan="<?= $colspan ?>"<?php } ?>
                         style="<?= isset($value) ? '' : 'text-align: center; ' ?>background-color: <?= getColorPercentage($value ?? -9999, $tomorrow_min, $tomorrow_max) ?>">
                         <?= isset($value) ? format($value) : '-' ?>

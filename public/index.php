@@ -676,6 +676,16 @@ asort($hours);
                 type: 'category',
                 data: <?= json_encode(array_values($legend)) ?>,
                 boundaryGap: false,
+                axisLabel: {
+                    formatter: function (value) {
+                        let hour = value.split(':')[0];
+                        return hour;
+                    },
+                    interval: function (index, value) {
+                        // Show label only when minutes are :00
+                        return value.endsWith(':00');
+                    }
+                },
                 splitLine: {
                     show: true,
                     interval: 0,

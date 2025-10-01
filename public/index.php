@@ -1,13 +1,8 @@
 <?php
-require 'functions.php';
-
-if (php_sapi_name() == 'cli-server') {
-    $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-    if ($uri !== '/' && file_exists(__DIR__ . $uri)) {
-        return false;
-    }
+$ret = require 'functions.php';
+if (!$ret) {
+    return false;
 }
-
 
 $path = $_SERVER['REQUEST_URI'] ?? '';
 $path = explode('?', $path)[0];
@@ -21,6 +16,11 @@ $tz_riga = new DateTimeZone('Europe/Riga');
 $tz_cet = new DateTimeZone('Europe/Berlin');
 
 $with_vat = isset($_GET['vat']);
+$resolution = isset($_GET['res']) && $_GET['res'] == '60' ? 60 : 15;
+$quarters_per_hour = $resolution == 15 ? 4 : 1;
+
+$countryConfig = getCountryConfig();
+$translations = getTranslations();
 
 if (!isset($countryConfig[$country])) {
     $country = 'LV';
@@ -45,7 +45,7 @@ SELECT *
  WHERE country = " . $DB->quote($locale->get('code')) . "
    AND ts_start >= DATE(" . $DB->quote($sql_time) . ", '-2 day')
    AND ts_start <= DATE(" . $DB->quote($sql_time) . ", '+3 day')
-   AND resolution_minutes = 15
+   AND resolution_minutes = " . $resolution . "
 ORDER BY ts_start DESC
 ";
 
@@ -68,7 +68,7 @@ foreach ($DB->query($sql) as $row) {
 
         $hour = (int)$start->format('H');
         $minute = (int)$start->format('i');
-        $quarter = (int)($minute / 15); // 0, 1, 2, or 3
+        $quarter = $resolution == 15 ? (int)($minute / 15) : 0; // 0, 1, 2, or 3 for 15min; always 0 for 60min
 
         $prices[$start->format('Y-m-d')][$hour][$quarter] = round(($with_vat ? 1 + $vat : 1) * ((float)$row['value']) / 1000, 4);
     } catch (Exception $e) {
@@ -94,8 +94,9 @@ foreach ($tomorrow as $hour => $quarters) {
     }
 }
 
-$today_avg = count($today_flat) === 96 ? array_sum($today_flat) / count($today_flat) : null;
-$tomorrow_avg = count($tomorrow_flat) === 96 ? array_sum($tomorrow_flat) / count($tomorrow_flat) : null;
+$expected_count = 24 * $quarters_per_hour; // 96 for 15min, 24 for 60min
+$today_avg = count($today_flat) === $expected_count ? array_sum($today_flat) / count($today_flat) : null;
+$tomorrow_avg = count($tomorrow_flat) === $expected_count ? array_sum($tomorrow_flat) / count($tomorrow_flat) : null;
 
 $today_max = count($today_flat) ? max($today_flat) : 0;
 $today_min = count($today_flat) ? min($today_flat) : 0;
@@ -216,7 +217,7 @@ asort($hours);
             border: 2px solid #fff;
         }
 
-        table tbody tr th {
+        table th {
             white-space: nowrap;
         }
 
@@ -234,7 +235,7 @@ asort($hours);
         }
 
         .price {
-            text-align: left;
+            text-align: right;
             color: #fff;
             font-family: 'consolas', monospace;
         }
@@ -349,12 +350,16 @@ asort($hours);
         }
 
         @media (max-width: 768px) {
-            .desktop-table {
+            body:not(.res-60) .desktop-table {
                 display: none;
             }
 
-            .mobile-tables {
+            body:not(.res-60) .mobile-tables {
                 display: block;
+            }
+
+            body.res-60 .mobile-tables {
+                display: none;
             }
 
             #chart-selector {
@@ -364,7 +369,7 @@ asort($hours);
     </style>
 </head>
 
-<body>
+<body<?= $resolution == 60 ? ' class="res-60"' : '' ?>>
 
 <div id="app">
 
@@ -382,10 +387,18 @@ asort($hours);
             <?= $locale->msg('subtitle') ?><br/>
             <?php if ($with_vat) { ?>
                 <?= $locale->msg('it is with VAT') ?> <?= round($vat * 100) ?>% (<a
-                        href="<?= $locale->route('/') ?>"><?= $locale->msg('show without VAT') ?></a>)
+                        href="<?= $locale->route('/') . ($resolution == 60 ? '?res=60' : '') ?>"><?= $locale->msg('show without VAT') ?></a>)
             <?php } else { ?>
                 <?= $locale->msg('it is without VAT') ?> <?= round($vat * 100) ?>% (<a
-                        href="<?= $locale->route('/?vat') ?>"><?= $locale->msg('show with VAT') ?></a>)
+                        href="<?= $locale->route('/?vat') . ($resolution == 60 ? '&res=60' : '') ?>"><?= $locale->msg('show with VAT') ?></a>)
+            <?php } ?>
+            <br/>
+            <?php if ($resolution == 15) { ?>
+                <?= $locale->msg('Resolution') ?>: <strong>15min</strong> (<a
+                        href="<?= $locale->route('/' . ($with_vat ? '?vat&res=60' : '?res=60')) ?>"><?= $locale->msg('show 1h') ?></a>)
+            <?php } else { ?>
+                <?= $locale->msg('Resolution') ?>: <strong>1h</strong> (<a
+                        href="<?= $locale->route('/' . ($with_vat ? '?vat' : '')) ?>"><?= $locale->msg('show 15min') ?></a>)
             <?php } ?>
         </p>
     </header>
@@ -413,11 +426,12 @@ asort($hours);
     <table class="desktop-table">
         <thead>
         <tr>
-            <th colspan="5"><?= $locale->msg('Šodien') ?>
+            <th></th>
+            <th colspan="<?= $quarters_per_hour ?>"><?= $locale->msg('Šodien') ?>
                 <span class="help"><?= $locale->formatDate($current_time, 'd. MMM') ?></span><br/>
                 <small><?= $locale->msg('Vidēji') ?> <span><?= $today_avg ? format($today_avg) : '—' ?></span></small>
             </th>
-            <th colspan="4"><?= $locale->msg('Rīt') ?>
+            <th colspan="<?= $quarters_per_hour ?>"><?= $locale->msg('Rīt') ?>
                 <span
                         class="help"><?= $locale->formatDate($current_time->modify('+1 day'), 'd. MMM') ?></span><br/>
                 <small><?= $locale->msg('Vidēji') ?> <span><?= $tomorrow_avg ? format($tomorrow_avg) : '—' ?></span></small>
@@ -425,14 +439,19 @@ asort($hours);
         </tr>
         <tr>
             <th>🕑</th>
-            <th>:00</th>
-            <th>:15</th>
-            <th>:30</th>
-            <th>:45</th>
-            <th>:00</th>
-            <th>:15</th>
-            <th>:30</th>
-            <th>:45</th>
+            <?php if ($resolution == 15) { ?>
+                <th>:00</th>
+                <th>:15</th>
+                <th>:30</th>
+                <th>:45</th>
+                <th>:00</th>
+                <th>:15</th>
+                <th>:30</th>
+                <th>:45</th>
+            <?php } else { ?>
+                <th>:00</th>
+                <th>:00</th>
+            <?php } ?>
         </tr>
         </thead>
         <tbody>
@@ -442,8 +461,12 @@ asort($hours);
         $values['today'] = [];
         $values['tomorrow'] = [];
         for ($hour = 0; $hour < 24; $hour++) {
-            for ($q = 0; $q < 4; $q++) {
-                $legend[] = sprintf('%02d:%02d', $hour, $q * 15);
+            for ($q = 0; $q < $quarters_per_hour; $q++) {
+                if ($resolution == 15) {
+                    $legend[] = sprintf('%02d:%02d', $hour, $q * 15);
+                } else {
+                    $legend[] = sprintf('%02d:00', $hour);
+                }
                 $values['today'][] = $today[$hour][$q] ?? 0;
                 $values['tomorrow'][] = $tomorrow[$hour][$q] ?? 0;
             }
@@ -457,13 +480,13 @@ asort($hours);
                 <?php
                 // Process quarters for today with colspan logic
                 $q = 0;
-                while ($q < 4) {
+                while ($q < $quarters_per_hour) {
                     $value = $today[$hour][$q] ?? null;
 
                     // Count consecutive quarters with same value
                     $colspan = 1;
                     $next_q = $q + 1;
-                    while ($next_q < 4) {
+                    while ($next_q < $quarters_per_hour) {
                         $next_value = $today[$hour][$next_q] ?? null;
                         if ($value !== null && $next_value !== null && $value === $next_value) {
                             $colspan++;
@@ -485,13 +508,13 @@ asort($hours);
                 <?php
                 // Process quarters for tomorrow with colspan logic
                 $q = 0;
-                while ($q < 4) {
+                while ($q < $quarters_per_hour) {
                     $value = $tomorrow[$hour][$q] ?? null;
 
                     // Count consecutive quarters with same value
                     $colspan = 1;
                     $next_q = $q + 1;
-                    while ($next_q < 4) {
+                    while ($next_q < $quarters_per_hour) {
                         $next_value = $tomorrow[$hour][$next_q] ?? null;
                         if ($value !== null && $next_value !== null && $value === $next_value) {
                             $colspan++;
@@ -523,24 +546,30 @@ asort($hours);
 
     <!-- Mobile tables -->
     <div class="mobile-tables">
+        <?php if ($resolution == 15) { ?>
         <div id="mobile-selector">
             <a href="#" data-day="today" data-current><?= $locale->msg('Šodien') ?></a>
             <a href="#" data-day="tomorrow"><?= $locale->msg('Rīt') ?></a>
         </div>
+        <?php } ?>
         <table class="mobile-table" data-day="today">
             <thead>
             <tr>
-                <th colspan="5"><?= $locale->msg('Šodien') ?>
+                <th colspan="<?= $quarters_per_hour + 1 ?>"><?= $locale->msg('Šodien') ?>
                     <span class="help"><?= $locale->formatDate($current_time, 'd. MMM') ?></span><br/>
                     <small><?= $locale->msg('Vidēji') ?> <span><?= $today_avg ? format($today_avg) : '—' ?></span></small>
                 </th>
             </tr>
             <tr>
                 <th>🕑</th>
-                <th>:00</th>
-                <th>:15</th>
-                <th>:30</th>
-                <th>:45</th>
+                <?php if ($resolution == 15) { ?>
+                    <th>:00</th>
+                    <th>:15</th>
+                    <th>:30</th>
+                    <th>:45</th>
+                <?php } else { ?>
+                    <th>:00</th>
+                <?php } ?>
             </tr>
             </thead>
             <tbody>
@@ -552,13 +581,13 @@ asort($hours);
                     <?php
                     // Process quarters for today with colspan logic
                     $q = 0;
-                    while ($q < 4) {
+                    while ($q < $quarters_per_hour) {
                         $value = $today[$hour][$q] ?? null;
 
                         // Count consecutive quarters with same value
                         $colspan = 1;
                         $next_q = $q + 1;
-                        while ($next_q < 4) {
+                        while ($next_q < $quarters_per_hour) {
                             $next_value = $today[$hour][$next_q] ?? null;
                             if ($value !== null && $next_value !== null && $value === $next_value) {
                                 $colspan++;
@@ -582,20 +611,24 @@ asort($hours);
             </tbody>
         </table>
 
-        <table class="mobile-table hidden" data-day="tomorrow">
+        <table class="mobile-table<?= $resolution == 15 ? ' hidden' : '' ?>" data-day="tomorrow">
             <thead>
             <tr>
-                <th colspan="5"><?= $locale->msg('Rīt') ?>
+                <th colspan="<?= $quarters_per_hour + 1 ?>"><?= $locale->msg('Rīt') ?>
                     <span class="help"><?= $locale->formatDate($current_time->modify('+1 day'), 'd. MMM') ?></span><br/>
                     <small><?= $locale->msg('Vidēji') ?> <span><?= $tomorrow_avg ? format($tomorrow_avg) : '—' ?></span></small>
                 </th>
             </tr>
             <tr>
                 <th>🕑</th>
-                <th>:00</th>
-                <th>:15</th>
-                <th>:30</th>
-                <th>:45</th>
+                <?php if ($resolution == 15) { ?>
+                    <th>:00</th>
+                    <th>:15</th>
+                    <th>:30</th>
+                    <th>:45</th>
+                <?php } else { ?>
+                    <th>:00</th>
+                <?php } ?>
             </tr>
             </thead>
             <tbody>
@@ -607,13 +640,13 @@ asort($hours);
                     <?php
                     // Process quarters for tomorrow with colspan logic
                     $q = 0;
-                    while ($q < 4) {
+                    while ($q < $quarters_per_hour) {
                         $value = $tomorrow[$hour][$q] ?? null;
 
                         // Count consecutive quarters with same value
                         $colspan = 1;
                         $next_q = $q + 1;
-                        while ($next_q < 4) {
+                        while ($next_q < $quarters_per_hour) {
                             $next_value = $tomorrow[$hour][$next_q] ?? null;
                             if ($value !== null && $next_value !== null && $value === $next_value) {
                                 $colspan++;
@@ -792,19 +825,31 @@ asort($hours);
                 (<a href="<?= $locale->route('/?vat') ?>"><?= $locale->msg('show with VAT') ?></a>).
             <?php } ?>
 
-            <?= $locale->msgf(
-                'disclaimer',
-                '<a href="/nordpool-' . $locale->get('code_lc') . '.csv">' .
-                $locale->msg('normal CSV') .
-                '</a> (<a href="/nordpool-' . $locale->get('code_lc') . '-1h.csv">' .
-                $locale->msg('1h average') .
-                '</a>)',
-                '<a href="/nordpool-' . $locale->get('code_lc') . '-excel.csv">' .
-                $locale->msg('Excel CSV') .
-                '</a> (<a href="/nordpool-' . $locale->get('code_lc') . '-1h-excel.csv">' .
-                $locale->msg('1h average Excel') .
-                '</a>)'
-            ) ?>
+            <?php if ($resolution == 15) { ?>
+                <?= $locale->msgf(
+                    'disclaimer',
+                    '<a href="/nordpool-' . $locale->get('code_lc') . '.csv">' .
+                    $locale->msg('normal CSV') .
+                    '</a> (<a href="/nordpool-' . $locale->get('code_lc') . '-1h.csv">' .
+                    $locale->msg('1h average') .
+                    '</a>)',
+                    '<a href="/nordpool-' . $locale->get('code_lc') . '-excel.csv">' .
+                    $locale->msg('Excel CSV') .
+                    '</a> (<a href="/nordpool-' . $locale->get('code_lc') . '-1h-excel.csv">' .
+                    $locale->msg('1h average Excel') .
+                    '</a>)'
+                ) ?>
+            <?php } else { ?>
+                <?= $locale->msgf(
+                    'disclaimer',
+                    '<a href="/nordpool-' . $locale->get('code_lc') . '-1h.csv">' .
+                    $locale->msg('normal CSV') .
+                    '</a>',
+                    '<a href="/nordpool-' . $locale->get('code_lc') . '-1h-excel.csv">' .
+                    $locale->msg('Excel CSV') .
+                    '</a>'
+                ) ?>
+            <?php } ?>
     </footer>
 
     <script>

@@ -45,7 +45,7 @@ SELECT *
  WHERE country = " . $DB->quote($locale->get('code')) . "
    AND ts_start >= DATE(" . $DB->quote($sql_time) . ", '-2 day')
    AND ts_start <= DATE(" . $DB->quote($sql_time) . ", '+3 day')
-   AND resolution_minutes = 60
+   AND resolution_minutes = 15
 ORDER BY ts_start DESC
 ";
 
@@ -65,7 +65,12 @@ foreach ($DB->query($sql) as $row) {
         $end = new DateTime($row['ts_end'], $tz_cet);
         $start->setTimeZone($tz_riga);
         $end->setTimeZone($tz_riga);
-        $prices[$start->format('Y-m-d')][$start->format('H') . '-' . $end->format('H')] = round(($with_vat ? 1 + $vat : 1) * ((float)$row['value']) / 1000, 4);
+
+        $hour = (int)$start->format('H');
+        $minute = (int)$start->format('i');
+        $quarter = (int)($minute / 15); // 0, 1, 2, or 3
+
+        $prices[$start->format('Y-m-d')][$hour][$quarter] = round(($with_vat ? 1 + $vat : 1) * ((float)$row['value']) / 1000, 4);
     } catch (Exception $e) {
         continue;
     }
@@ -74,15 +79,31 @@ foreach ($DB->query($sql) as $row) {
 $today = $prices[$current_time->format('Y-m-d')] ?? [];
 $tomorrow = $prices[$current_time->modify('+1 day')->format('Y-m-d')] ?? [];
 
-$today_avg = count($today) === 24 ? array_sum($today) / count($today) : null;
-$tomorrow_avg = count($tomorrow) === 24 ? array_sum($tomorrow) / count($tomorrow) : null;
+// Flatten today and tomorrow for calculations
+$today_flat = [];
+foreach ($today as $hour => $quarters) {
+    foreach ($quarters as $quarter => $value) {
+        $today_flat[] = $value;
+    }
+}
 
-$today_max = count($today) ? max($today) : 0;
-$today_min = count($today) ? min($today) : 0;
-$tomorrow_max = count($tomorrow) ? max($tomorrow) : 0;
-$tomorrow_min = count($tomorrow) ? min($tomorrow) : 0;
+$tomorrow_flat = [];
+foreach ($tomorrow as $hour => $quarters) {
+    foreach ($quarters as $quarter => $value) {
+        $tomorrow_flat[] = $value;
+    }
+}
 
-$now = $current_time->format('H') . '-' . $current_time->modify('+1 hour')->format('H');
+$today_avg = count($today_flat) === 96 ? array_sum($today_flat) / count($today_flat) : null;
+$tomorrow_avg = count($tomorrow_flat) === 96 ? array_sum($tomorrow_flat) / count($tomorrow_flat) : null;
+
+$today_max = count($today_flat) ? max($today_flat) : 0;
+$today_min = count($today_flat) ? min($today_flat) : 0;
+$tomorrow_max = count($tomorrow_flat) ? max($tomorrow_flat) : 0;
+$tomorrow_min = count($tomorrow_flat) ? min($tomorrow_flat) : 0;
+
+$now_hour = (int)$current_time->format('H');
+$now_quarter = (int)((int)$current_time->format('i') / 15);
 
 foreach ($prices as $k => $day) {
     ksort($prices[$k]);
@@ -192,6 +213,11 @@ asort($hours);
             outline: 3px solid #f00;
         }
 
+        td.now-quarter {
+            outline: 3px solid #ff0;
+            outline-offset: -3px;
+        }
+
         .price {
             text-align: right;
             color: #fff;
@@ -219,6 +245,7 @@ asort($hours);
 
         .extra-decimals {
             opacity: .4;
+            font-size:70%;
         }
 
         header {
@@ -267,6 +294,58 @@ asort($hours);
             background-color: #333;
             color: #fff;
         }
+
+        /* Mobile responsive tables */
+        .mobile-tables {
+            display: none;
+        }
+
+        .mobile-table {
+            margin-bottom: 2em;
+        }
+
+        .mobile-table.hidden {
+            display: none;
+        }
+
+        #mobile-selector {
+            margin: 1em 0;
+            text-align: center;
+        }
+
+        #mobile-selector a {
+            display: inline-block;
+            text-align: center;
+            font-size: 1rem;
+            font-weight: 600;
+            border-radius: 8px;
+            margin: 0 .3em;
+            padding: 0.5em 1em;
+            background-color: #f0f0f0;
+            color: #333;
+            text-decoration: none;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        #mobile-selector a:hover,
+        #mobile-selector a[data-current] {
+            background-color: #333;
+            color: #fff;
+        }
+
+        @media (max-width: 768px) {
+            .desktop-table {
+                display: none;
+            }
+
+            .mobile-tables {
+                display: block;
+            }
+
+            #chart-selector {
+                display: none;
+            }
+        }
     </style>
 </head>
 
@@ -308,19 +387,30 @@ asort($hours);
         </script>
     <?php } ?>
 
-    <table>
+    <!-- Desktop table -->
+    <table class="desktop-table">
         <thead>
         <tr>
-            <th>🕑</th>
-            <th><?= $locale->msg('Šodien') ?>
+            <th colspan="5"><?= $locale->msg('Šodien') ?>
                 <span class="help"><?= $locale->formatDate($current_time, 'd. MMM') ?></span><br/>
                 <small><?= $locale->msg('Vidēji') ?> <span><?= $today_avg ? format($today_avg) : '—' ?></span></small>
             </th>
-            <th><?= $locale->msg('Rīt') ?>
+            <th colspan="4"><?= $locale->msg('Rīt') ?>
                 <span
                         class="help"><?= $locale->formatDate($current_time->modify('+1 day'), 'd. MMM') ?></span><br/>
                 <small><?= $locale->msg('Vidēji') ?> <span><?= $tomorrow_avg ? format($tomorrow_avg) : '—' ?></span></small>
             </th>
+        </tr>
+        <tr>
+            <th>🕑</th>
+            <th>:00</th>
+            <th>:15</th>
+            <th>:30</th>
+            <th>:45</th>
+            <th>:00</th>
+            <th>:15</th>
+            <th>:30</th>
+            <th>:45</th>
         </tr>
         </thead>
         <tbody>
@@ -329,30 +419,117 @@ asort($hours);
         $values['today'] = [];
         $values['tomorrow'] = [];
         ?>
-        <?php foreach ($hours as $hour) {
-            $legend[] = explode('-', $hour)[0];
-            $values['today'][$hour] = $today[$hour] ?? 0;
-            $values['tomorrow'][$hour] = $tomorrow[$hour] ?? 0;
+        <?php for ($hour = 0; $hour < 24; $hour++) {
+            $hour_label = sprintf('%02d', $hour) . '-' . sprintf('%02d', ($hour + 1) % 24);
             ?>
-            <tr data-hours="<?= (int)$hour ?>">
-                <th><?= $hour ?></th>
-                <td class="price"
-                    style="background-color: <?= getColorPercentage($today[$hour] ?? -9999, $today_min, $today_max) ?>">
-                    <?= isset($today[$hour]) ? format($today[$hour]) : '-' ?>
-                </td>
-                <td class="price"
-                    style="<?= isset($tomorrow[$hour]) ? '' : 'text-align: center; ' ?>background-color: <?= getColorPercentage($tomorrow[$hour] ?? -9999, $tomorrow_min, $tomorrow_max) ?>">
-                    <?= isset($tomorrow[$hour]) ? format($tomorrow[$hour]) : '-' ?>
-                </td>
+            <tr data-hours="<?= $hour ?>">
+                <th><?= $hour_label ?></th>
+                <?php for ($q = 0; $q < 4; $q++) {
+                    $value = $today[$hour][$q] ?? null;
+                    $legend[] = sprintf('%02d:%02d', $hour, $q * 15);
+                    $values['today'][] = $value ?? 0;
+                    ?>
+                    <td class="price quarter-<?= $q ?>" data-quarter="<?= $q ?>"
+                        style="background-color: <?= getColorPercentage($value ?? -9999, $today_min, $today_max) ?>">
+                        <?= isset($value) ? format($value) : '-' ?>
+                    </td>
+                <?php } ?>
+                <?php for ($q = 0; $q < 4; $q++) {
+                    $value = $tomorrow[$hour][$q] ?? null;
+                    $values['tomorrow'][] = $value ?? 0;
+                    ?>
+                    <td class="price quarter-<?= $q ?>" data-quarter="<?= $q ?>"
+                        style="<?= isset($value) ? '' : 'text-align: center; ' ?>background-color: <?= getColorPercentage($value ?? -9999, $tomorrow_min, $tomorrow_max) ?>">
+                        <?= isset($value) ? format($value) : '-' ?>
+                    </td>
+                <?php } ?>
             </tr>
         <?php } ?>
 
         <?php
-        $legend[] = '00';
-        $values['today'][] = $tomorrow['00-01'] ?? 0;
+        // Add final point for chart continuity
+        $legend[] = '00:00';
+        $values['today'][] = $tomorrow[0][0] ?? 0;
         ?>
         </tbody>
     </table>
+
+    <!-- Mobile tables -->
+    <div class="mobile-tables">
+        <div id="mobile-selector">
+            <a href="#" data-day="today" data-current><?= $locale->msg('Šodien') ?></a>
+            <a href="#" data-day="tomorrow"><?= $locale->msg('Rīt') ?></a>
+        </div>
+        <table class="mobile-table" data-day="today">
+            <thead>
+            <tr>
+                <th colspan="5"><?= $locale->msg('Šodien') ?>
+                    <span class="help"><?= $locale->formatDate($current_time, 'd. MMM') ?></span><br/>
+                    <small><?= $locale->msg('Vidēji') ?> <span><?= $today_avg ? format($today_avg) : '—' ?></span></small>
+                </th>
+            </tr>
+            <tr>
+                <th>🕑</th>
+                <th>:00</th>
+                <th>:15</th>
+                <th>:30</th>
+                <th>:45</th>
+            </tr>
+            </thead>
+            <tbody>
+            <?php for ($hour = 0; $hour < 24; $hour++) {
+                $hour_label = sprintf('%02d', $hour) . '-' . sprintf('%02d', ($hour + 1) % 24);
+                ?>
+                <tr data-hours="<?= $hour ?>" data-day="today">
+                    <th><?= $hour_label ?></th>
+                    <?php for ($q = 0; $q < 4; $q++) {
+                        $value = $today[$hour][$q] ?? null;
+                        ?>
+                        <td class="price quarter-<?= $q ?>" data-quarter="<?= $q ?>"
+                            style="background-color: <?= getColorPercentage($value ?? -9999, $today_min, $today_max) ?>">
+                            <?= isset($value) ? format($value) : '-' ?>
+                        </td>
+                    <?php } ?>
+                </tr>
+            <?php } ?>
+            </tbody>
+        </table>
+
+        <table class="mobile-table hidden" data-day="tomorrow">
+            <thead>
+            <tr>
+                <th colspan="5"><?= $locale->msg('Rīt') ?>
+                    <span class="help"><?= $locale->formatDate($current_time->modify('+1 day'), 'd. MMM') ?></span><br/>
+                    <small><?= $locale->msg('Vidēji') ?> <span><?= $tomorrow_avg ? format($tomorrow_avg) : '—' ?></span></small>
+                </th>
+            </tr>
+            <tr>
+                <th>🕑</th>
+                <th>:00</th>
+                <th>:15</th>
+                <th>:30</th>
+                <th>:45</th>
+            </tr>
+            </thead>
+            <tbody>
+            <?php for ($hour = 0; $hour < 24; $hour++) {
+                $hour_label = sprintf('%02d', $hour) . '-' . sprintf('%02d', ($hour + 1) % 24);
+                ?>
+                <tr data-hours="<?= $hour ?>" data-day="tomorrow">
+                    <th><?= $hour_label ?></th>
+                    <?php for ($q = 0; $q < 4; $q++) {
+                        $value = $tomorrow[$hour][$q] ?? null;
+                        ?>
+                        <td class="price quarter-<?= $q ?>" data-quarter="<?= $q ?>"
+                            style="<?= isset($value) ? '' : 'text-align: center; ' ?>background-color: <?= getColorPercentage($value ?? -9999, $tomorrow_min, $tomorrow_max) ?>">
+                            <?= isset($value) ? format($value) : '-' ?>
+                        </td>
+                    <?php } ?>
+                </tr>
+            <?php } ?>
+            </tbody>
+        </table>
+    </div>
 
     <p id="legend">
         <span class="legend bad"><?= $locale->msg('Izvairāmies tērēt elektrību') ?></span> <span
@@ -388,15 +565,20 @@ asort($hours);
             tooltip: {
                 trigger: 'axis',
                 formatter: function (params) {
-                    let hour = parseInt(params[0].name, 10);
+                    let timeLabel = params[0].name;
                     let value = parseFloat(params[0].value);
                     let strValue = value.toString().padEnd(4, '0').substring(0, 4);
 
                     strValue += '<small>';
                     strValue += value.toString().substring(4).padEnd(2, '0');
                     strValue += '</small> €/kWh'
+
+                    let [hour, minute] = timeLabel.split(':').map(n => parseInt(n, 10));
+                    let endMinute = (minute + 15) % 60;
+                    let endHour = (minute + 15 >= 60) ? (hour + 1) % 24 : hour;
+
                     return `
-                        ${('' + hour).padStart(2, '0')}:00 - ${('' + (hour + 1) % 24).padStart(2, '0')}:00<br/>
+                        ${timeLabel} - ${('' + endHour).padStart(2, '0')}:${('' + endMinute).padStart(2, '0')}<br/>
                         ${strValue}
                         `;
                 },
@@ -506,15 +688,44 @@ asort($hours);
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            // now let's highlight the hour continuously
+            // now let's highlight the hour and quarter continuously
             let hours = null;
+            let quarter = null;
             (function updateNow() {
-                const currentHours = (new Date()).getHours();
-                if (hours !== currentHours) {
+                const now = new Date();
+                const currentHours = now.getHours();
+                const currentQuarter = Math.floor(now.getMinutes() / 15);
+
+                if (hours !== currentHours || quarter !== currentQuarter) {
                     Array.from(document.querySelectorAll('[data-hours]')).forEach((row) => {
-                        row.classList.toggle('now', currentHours === parseInt(row.dataset.hours))
+                        row.classList.remove('now');
                     })
+                    Array.from(document.querySelectorAll('td.price')).forEach((cell) => {
+                        cell.classList.remove('now-quarter');
+                    })
+
+                    // desktop table
+                    const desktopRow = document.querySelector('.desktop-table tr[data-hours="' + currentHours + '"]');
+                    if (desktopRow) {
+                        desktopRow.classList.add('now');
+                        const allCells = desktopRow.querySelectorAll('td.price');
+                        if (allCells[currentQuarter]) {
+                            allCells[currentQuarter].classList.add('now-quarter');
+                        }
+                    }
+
+                    // mobile tables
+                    const mobileRow = document.querySelector('.mobile-table tr[data-hours="' + currentHours + '"][data-day="today"]');
+                    if (mobileRow) {
+                        mobileRow.classList.add('now');
+                        const quarterCells = mobileRow.querySelectorAll('td.price');
+                        if (quarterCells[currentQuarter]) {
+                            quarterCells[currentQuarter].classList.add('now-quarter');
+                        }
+                    }
+
                     hours = currentHours;
+                    quarter = currentQuarter;
                 }
                 setTimeout(updateNow, 1000);
             })()
@@ -528,6 +739,31 @@ asort($hours);
                     }]
                 });
                 document.querySelectorAll('#chart-selector a').forEach((el) => {
+                    el.removeAttribute('data-current');
+                })
+                e.target.setAttribute('data-current', true);
+            }))
+
+            // mobile selector
+            document.querySelectorAll('#mobile-selector a').forEach(element => element.addEventListener('click', (e) => {
+                e.preventDefault();
+                const day = e.target.dataset.day;
+
+                document.querySelectorAll('.mobile-table').forEach((table) => {
+                    if (table.dataset.day === day) {
+                        table.classList.remove('hidden');
+                    } else {
+                        table.classList.add('hidden');
+                    }
+                })
+
+                chart.setOption({
+                    series: [{
+                        data: dataset[day],
+                    }]
+                });
+
+                document.querySelectorAll('#mobile-selector a').forEach((el) => {
                     el.removeAttribute('data-current');
                 })
                 e.target.setAttribute('data-current', true);

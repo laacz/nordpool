@@ -155,6 +155,22 @@ asort($hours);
             margin-top: 2em;
         }
 
+        .notice {
+          background-color: #e3f2fd;
+          border-left: 4px solid #2196f3;
+          padding: 16px 20px;
+          margin: 16px 0;
+          border-radius: 4px;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .notice p {
+          margin: 0;
+          color: #1565c0;
+          font-size: 14px;
+          line-height: 1.5;
+        }
+
         #app footer p {
             font-size: smaller;
             text-align: left;
@@ -374,6 +390,13 @@ asort($hours);
             <?php } ?>
         </p>
     </header>
+
+    <?php if (date('Y-m-d') < '2025-10-08') { ?>
+        <div class="notice">
+            <p><?= $locale->msg('15min notice') ?></p>
+        </div>
+    <?php } ?>
+
 
     <?php if (!str_starts_with($_SERVER['HTTP_HOST'] ?? '', 'localhost') && $locale->get('code') === 'LV') { ?>
         <script async

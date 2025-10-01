@@ -174,6 +174,11 @@ $translations = [
         'LV' => 'Vidēji',
         'LT' => 'Vidutiniškai',
         'EE' => 'Keskmine',
+    ],
+    '15min notice' =>[
+        'LV' => 'Sākot ar 1. oktobri, biržas cenas tiek noteiktas ar 15 minūšu soli. Iepriekš solis bija stunda.',
+        'LT' => 'Alates 1. oktoobrist määratakse börsihinnad 15-minutilise sammuga. Varem oli samm tund.',
+        'EE' => 'Nuo spalio 1 d. biržos kainos nustatomos 15 minučių intervalu. Anksčiau intervalas buvo valanda.',
     ]
 ];
 

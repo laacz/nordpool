@@ -795,12 +795,16 @@ asort($hours);
 
             <?= $locale->msgf(
                 'disclaimer',
-                '<a href="/nordpool-' . $locale->get('code_lc') . '-15.csv">' .
+                '<a href="/nordpool-' . $locale->get('code_lc') . '.csv">' .
                 $locale->msg('normal CSV') .
-                '</a>',
-                '<a href="/nordpool-' . $locale->get('code_lc') . '-excel-15.csv">' .
+                '</a> (<a href="/nordpool-' . $locale->get('code_lc') . '-1h.csv">' .
+                $locale->msg('1h average') .
+                '</a>)',
+                '<a href="/nordpool-' . $locale->get('code_lc') . '-excel.csv">' .
                 $locale->msg('Excel CSV') .
-                '</a>'
+                '</a> (<a href="/nordpool-' . $locale->get('code_lc') . '-1h-excel.csv">' .
+                $locale->msg('1h average Excel') .
+                '</a>)'
             ) ?>
     </footer>
 

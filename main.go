@@ -58,7 +58,7 @@ func main() {
 	}
 
 	country := "LV"
-	resolution := 60
+	resolution := 15
 	if len(os.Args) > 1 {
 		if os.Args[1] == "csv" {
 			if len(os.Args) > 2 {

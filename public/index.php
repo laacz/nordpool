@@ -219,7 +219,7 @@ asort($hours);
         }
 
         .price {
-            text-align: right;
+            text-align: left;
             color: #fff;
             font-family: 'consolas', monospace;
         }
@@ -415,34 +415,79 @@ asort($hours);
         </thead>
         <tbody>
         <?php
+        // Build legend and values arrays first
         $legend = [];
         $values['today'] = [];
         $values['tomorrow'] = [];
+        for ($hour = 0; $hour < 24; $hour++) {
+            for ($q = 0; $q < 4; $q++) {
+                $legend[] = sprintf('%02d:%02d', $hour, $q * 15);
+                $values['today'][] = $today[$hour][$q] ?? 0;
+                $values['tomorrow'][] = $tomorrow[$hour][$q] ?? 0;
+            }
+        }
         ?>
         <?php for ($hour = 0; $hour < 24; $hour++) {
             $hour_label = sprintf('%02d', $hour) . '-' . sprintf('%02d', ($hour + 1) % 24);
             ?>
             <tr data-hours="<?= $hour ?>">
                 <th><?= $hour_label ?></th>
-                <?php for ($q = 0; $q < 4; $q++) {
+                <?php
+                // Process quarters for today with colspan logic
+                $q = 0;
+                while ($q < 4) {
                     $value = $today[$hour][$q] ?? null;
-                    $legend[] = sprintf('%02d:%02d', $hour, $q * 15);
-                    $values['today'][] = $value ?? 0;
+
+                    // Count consecutive quarters with same value
+                    $colspan = 1;
+                    $next_q = $q + 1;
+                    while ($next_q < 4) {
+                        $next_value = $today[$hour][$next_q] ?? null;
+                        if ($value !== null && $next_value !== null && $value === $next_value) {
+                            $colspan++;
+                            $next_q++;
+                        } else {
+                            break;
+                        }
+                    }
                     ?>
                     <td class="price quarter-<?= $q ?>" data-quarter="<?= $q ?>"
+                        <?php if ($colspan > 1) { ?>colspan="<?= $colspan ?>"<?php } ?>
                         style="background-color: <?= getColorPercentage($value ?? -9999, $today_min, $today_max) ?>">
                         <?= isset($value) ? format($value) : '-' ?>
                     </td>
-                <?php } ?>
-                <?php for ($q = 0; $q < 4; $q++) {
+                    <?php
+                    $q = $next_q;
+                }
+                ?>
+                <?php
+                // Process quarters for tomorrow with colspan logic
+                $q = 0;
+                while ($q < 4) {
                     $value = $tomorrow[$hour][$q] ?? null;
-                    $values['tomorrow'][] = $value ?? 0;
+
+                    // Count consecutive quarters with same value
+                    $colspan = 1;
+                    $next_q = $q + 1;
+                    while ($next_q < 4) {
+                        $next_value = $tomorrow[$hour][$next_q] ?? null;
+                        if ($value !== null && $next_value !== null && $value === $next_value) {
+                            $colspan++;
+                            $next_q++;
+                        } else {
+                            break;
+                        }
+                    }
                     ?>
                     <td class="price quarter-<?= $q ?>" data-quarter="<?= $q ?>"
+                        <?php if ($colspan > 1) { ?>colspan="<?= $colspan ?>"<?php } ?>
                         style="<?= isset($value) ? '' : 'text-align: center; ' ?>background-color: <?= getColorPercentage($value ?? -9999, $tomorrow_min, $tomorrow_max) ?>">
                         <?= isset($value) ? format($value) : '-' ?>
                     </td>
-                <?php } ?>
+                    <?php
+                    $q = $next_q;
+                }
+                ?>
             </tr>
         <?php } ?>
 
@@ -482,14 +527,34 @@ asort($hours);
                 ?>
                 <tr data-hours="<?= $hour ?>" data-day="today">
                     <th><?= $hour_label ?></th>
-                    <?php for ($q = 0; $q < 4; $q++) {
+                    <?php
+                    // Process quarters for today with colspan logic
+                    $q = 0;
+                    while ($q < 4) {
                         $value = $today[$hour][$q] ?? null;
+
+                        // Count consecutive quarters with same value
+                        $colspan = 1;
+                        $next_q = $q + 1;
+                        while ($next_q < 4) {
+                            $next_value = $today[$hour][$next_q] ?? null;
+                            if ($value !== null && $next_value !== null && $value === $next_value) {
+                                $colspan++;
+                                $next_q++;
+                            } else {
+                                break;
+                            }
+                        }
                         ?>
                         <td class="price quarter-<?= $q ?>" data-quarter="<?= $q ?>"
+                            <?php if ($colspan > 1) { ?>colspan="<?= $colspan ?>"<?php } ?>
                             style="background-color: <?= getColorPercentage($value ?? -9999, $today_min, $today_max) ?>">
                             <?= isset($value) ? format($value) : '-' ?>
                         </td>
-                    <?php } ?>
+                        <?php
+                        $q = $next_q;
+                    }
+                    ?>
                 </tr>
             <?php } ?>
             </tbody>
@@ -517,14 +582,34 @@ asort($hours);
                 ?>
                 <tr data-hours="<?= $hour ?>" data-day="tomorrow">
                     <th><?= $hour_label ?></th>
-                    <?php for ($q = 0; $q < 4; $q++) {
+                    <?php
+                    // Process quarters for tomorrow with colspan logic
+                    $q = 0;
+                    while ($q < 4) {
                         $value = $tomorrow[$hour][$q] ?? null;
+
+                        // Count consecutive quarters with same value
+                        $colspan = 1;
+                        $next_q = $q + 1;
+                        while ($next_q < 4) {
+                            $next_value = $tomorrow[$hour][$next_q] ?? null;
+                            if ($value !== null && $next_value !== null && $value === $next_value) {
+                                $colspan++;
+                                $next_q++;
+                            } else {
+                                break;
+                            }
+                        }
                         ?>
                         <td class="price quarter-<?= $q ?>" data-quarter="<?= $q ?>"
+                            <?php if ($colspan > 1) { ?>colspan="<?= $colspan ?>"<?php } ?>
                             style="<?= isset($value) ? '' : 'text-align: center; ' ?>background-color: <?= getColorPercentage($value ?? -9999, $tomorrow_min, $tomorrow_max) ?>">
                             <?= isset($value) ? format($value) : '-' ?>
                         </td>
-                    <?php } ?>
+                        <?php
+                        $q = $next_q;
+                    }
+                    ?>
                 </tr>
             <?php } ?>
             </tbody>

@@ -4,6 +4,74 @@ if (!$ret) {
     return false;
 }
 
+$countryConfig = getCountryConfig();
+$translations = getTranslations();
+
+$tz_riga = new DateTimeZone('Europe/Riga');
+$tz_cet = new DateTimeZone('Europe/Berlin');
+
+$path = trim($_SERVER['REQUEST_URI'] ?? '', '/');
+$path = explode('?', $path)[0];
+$parts = explode('/', $path);
+$country = strtoupper($parts[0] ?? 'lv');
+if (!isset($countryConfig[$country])) {
+    $country = 'LV';
+}
+
+$current_time = new DateTimeImmutable('now', $tz_riga);
+if (isset($_GET['now'])) {
+    $current_time = new DateTimeImmutable($_GET['now'], $tz_riga);
+}
+$current_time_cet = $current_time->setTimezone($tz_cet);
+$sql_time = $current_time_cet->format('Y-m-d H:i:s');
+$sql_time_tomorrow = new DateTimeImmutable(date('Y-m-d'), $tz_riga)->modify('+1 day')->setTimeZone($tz_cet)->format('Y-m-d H:00:00');
+$resolution = isset($_GET['res']) && $_GET['res'] == '60' ? 60 : 15;
+
+$locale = new AppLocale($countryConfig[$country], $translations);
+/** @var float $vat */
+$vat = $locale->get('vat');
+
+if (isset($_GET['rss'])) {
+
+    $DB = new PDO('sqlite:../nordpool.db');
+    $sql = "
+    SELECT ts_start, ts_end, value, resolution_minutes as resolution
+      FROM price_indices
+     WHERE country = " . $DB->quote(strtoupper($country)) . "
+       AND ts_start >= DATE(" . $DB->quote($sql_time_tomorrow) . ")
+    ORDER BY ts_start ASC
+    ";
+    // dd($sql);
+
+    $data = $DB->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+
+    header('Content-Type: application/xml; charset=utf-8');
+    ?><feed xmlns="http://www.w3.org/2005/Atom">
+        <title type="text">Nordpool spot prices tomorrow (<?=substr($sql_time_tomorrow, 0, 10)?>) for <?=$country?></title>
+        <updated><?= $current_time->format('Y-m-d\TH:i:sP') ?></updated>
+        <link rel="alternate" type="text/html" href="https://nordpool.didnt.work"/>
+        <id>https://nordpool.didnt.work/feed</id>
+        <?php foreach ($data as $row) {
+            $ts_start = new DateTime($row['ts_start'], $tz_cet)->setTimezone(new DateTimeZone('Europe/Riga'));
+            $ts_end = new DateTime($row['ts_end'], $tz_cet)->setTimezone(new DateTimeZone('Europe/Riga'));
+            $value = (float)$row['value']/1000;
+            $resolution = $row['resolution'];
+        ?>
+        <entry>
+            <id><?=$country.'-'.$resolution.'-'.$ts_start->getTimestamp().'-'.$ts_end->getTimestamp()?></id>
+            <ts_start><?= $ts_start->format('Y-m-d\TH:i:sP') ?></ts_start>
+            <ts_end><?= $ts_end->format('Y-m-d\TH:i:sP') ?></ts_end>
+            <resolution><?= $resolution ?></resolution>
+            <price><?= htmlspecialchars($value) ?></price>
+            <price_vat><?= htmlspecialchars($value * (1+$vat)) ?></price_vat>
+        </entry>
+        <?php } ?>
+    </feed>
+    <?php
+
+    return;
+}
+
 $mtime = stat('../nordpool.db')['mtime'] ?? 0;
 $cmtime = Cache::get('last_db_mtime', 0);
 
@@ -12,35 +80,11 @@ if ($cmtime === 0 || $mtime === 0 || (int)$mtime !== (int)$cmtime) {
     Cache::set('last_db_mtime', $mtime);
 }
 
-$path = $_SERVER['REQUEST_URI'] ?? '';
-$path = explode('?', $path)[0];
-$parts = explode('/', $path);
-$country = strtoupper($parts[1] ?? 'lv');
 
 $prices = [];
-$tz_riga = new DateTimeZone('Europe/Riga');
-$tz_cet = new DateTimeZone('Europe/Berlin');
 
 $with_vat = isset($_GET['vat']);
-$resolution = isset($_GET['res']) && $_GET['res'] == '60' ? 60 : 15;
 $quarters_per_hour = $resolution == 15 ? 4 : 1;
-
-$countryConfig = getCountryConfig();
-$translations = getTranslations();
-
-if (!isset($countryConfig[$country])) {
-    $country = 'LV';
-}
-
-$locale = new AppLocale($countryConfig[$country], $translations);
-
-/** @var float $vat */
-$vat = $locale->get('vat');
-
-$current_time = new DateTimeImmutable('now', $tz_riga);
-if (isset($_GET['now'])) {
-    $current_time = new DateTimeImmutable($_GET['now'], $tz_riga);
-}
 
 $cache_key = 'prices_' . $locale->get('code') . '_' . $current_time->format('Ymd_Hi') . '_' . ($with_vat ? 'vat' : 'novat') . '_' . $resolution;
 
@@ -55,9 +99,6 @@ if ($html) {
 
 
 $DB = new PDO('sqlite:../nordpool.db');
-
-$current_time_cet = $current_time->setTimezone($tz_cet);
-$sql_time = $current_time_cet->format('Y-m-d H:i:s');
 
 $sql = "
 SELECT *
@@ -155,6 +196,7 @@ asort($hours);
           content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <title><?=$locale->msg('title')?></title>
+    <link rel="alternate" type="application/rss+xml" title="nordpool.didnt.work RSS feed" href="https://nordpool.didnt.work/<?=strtolower($country)?>?rss"/>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fira+Sans:wght@100;400;700&display=swap" rel="stylesheet">

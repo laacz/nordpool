@@ -75,7 +75,7 @@ if (isset($_GET['rss'])) {
 $mtime = stat('../nordpool.db')['mtime'] ?? 0;
 $cmtime = Cache::get('last_db_mtime', 0);
 
-if ($cmtime === 0 || $mtime === 0 || (int)$mtime !== (int)$cmtime) {
+if ($cmtime === 0 || $mtime === 0 || (int)$mtime !== (int)$cmtime || isset($_GET['purge'])) {
     Cache::clear();
     Cache::set('last_db_mtime', $mtime);
 }
@@ -896,7 +896,8 @@ asort($hours);
                     '<a href="/nordpool-' . $locale->get('code_lc') . '-1h.csv">' . $locale->msg('1h average') . '</a>)',
                     $locale->msg('Excel CSV') .
                     ' (<a href="/nordpool-' . $locale->get('code_lc') . '-excel.csv">' . $locale->msg("15min data") . '</a>, ' .
-                    '<a href="/nordpool-' . $locale->get('code_lc') . '-1h-excel.csv">' . $locale->msg('1h average') . '</a>)'
+                    '<a href="/nordpool-' . $locale->get('code_lc') . '-1h-excel.csv">' . $locale->msg('1h average') . '</a>)',
+                    '<a href="https://nordpool.didnt.work/'. strtolower($country) . '?rss">rss</a>'
             )?>
     </footer>
 

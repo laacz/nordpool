@@ -4,12 +4,18 @@ if (!$ret) {
     return false;
 }
 
+$mtime = stat('../nordpool.db')['mtime'] ?? 0;
+$cmtime = Cache::get('last_db_mtime', 0);
+
+if ($cmtime === 0 || $mtime === 0 || (int)$mtime !== (int)$cmtime) {
+    Cache::clear();
+    Cache::set('last_db_mtime', $mtime);
+}
+
 $path = $_SERVER['REQUEST_URI'] ?? '';
 $path = explode('?', $path)[0];
 $parts = explode('/', $path);
 $country = strtoupper($parts[1] ?? 'lv');
-
-$DB = new PDO('sqlite:../nordpool.db');
 
 $prices = [];
 $tz_riga = new DateTimeZone('Europe/Riga');
@@ -35,6 +41,20 @@ $current_time = new DateTimeImmutable('now', $tz_riga);
 if (isset($_GET['now'])) {
     $current_time = new DateTimeImmutable($_GET['now'], $tz_riga);
 }
+
+$cache_key = 'prices_' . $locale->get('code') . '_' . $current_time->format('Ymd_Hi') . '_' . ($with_vat ? 'vat' : 'novat') . '_' . $resolution;
+
+$html = Cache::get($cache_key);
+
+if (!ob_start('ob_gzhandler')) ob_start();
+if ($html) {
+    header('X-Cache: HIT');
+    echo $html;
+    exit;
+}
+
+
+$DB = new PDO('sqlite:../nordpool.db');
 
 $current_time_cet = $current_time->setTimezone($tz_cet);
 $sql_time = $current_time_cet->format('Y-m-d H:i:s');
@@ -926,3 +946,7 @@ asort($hours);
 </body>
 
 </html>
+<?php
+$html = ob_get_clean();
+echo $html;
+Cache::set($cache_key, $html);

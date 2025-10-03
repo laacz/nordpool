@@ -60,7 +60,16 @@ func main() {
 	country := "LV"
 	resolution := 15
 	if len(os.Args) > 1 {
-		if os.Args[1] == "csv" {
+		switch os.Args[1] {
+		case "serve":
+			port := "8080"
+			if len(os.Args) > 2 {
+				port = os.Args[2]
+			}
+			if err := serveHTTP(db, port); err != nil {
+				log.Fatalf("Error starting server: %s", err)
+			}
+		case "csv":
 			if len(os.Args) > 2 {
 				country = strings.ToUpper(os.Args[2])
 			}
@@ -69,7 +78,7 @@ func main() {
 			}
 
 			writeCsv(db, ",", country, resolution)
-		} else if os.Args[1] == "excel" {
+		case "excel":
 			if len(os.Args) > 2 {
 				country = strings.ToUpper(os.Args[2])
 			}
@@ -78,8 +87,7 @@ func main() {
 			}
 
 			writeCsv(db, ";", country, resolution)
-		} else if os.Args[1] == "update" {
-
+		case "update":
 			endDate, err := inferEndDate()
 			if err != nil {
 				log.Fatalf("Error parsing date: %s", err)
@@ -119,8 +127,7 @@ func main() {
 					}
 				}
 			}
-		} else if os.Args[1] == "update-indices" {
-
+		case "update-indices":
 			endDate, err := inferEndDate()
 			if err != nil {
 				log.Fatalf("Error parsing date: %s", err)
@@ -169,9 +176,8 @@ func main() {
 			}
 		}
 	} else {
-		fmt.Println("Usage: nordpool [csv|excel|update|update-indices] [date]")
+		fmt.Println("Usage: nordpool [serve|csv|excel|update|update-indices] [args...]")
 	}
-
 }
 
 func writeCsv(db *sql.DB, separator string, country string, resolution int) {

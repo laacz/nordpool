@@ -1,4 +1,4 @@
 NAME = nordpool
 
 build:
-	go build -o nordpool
+	templ generate && go build -o nordpool

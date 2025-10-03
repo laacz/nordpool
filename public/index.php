@@ -431,7 +431,7 @@ asort($hours);
     <?php } ?>
 
 
-    <?php if (!str_starts_with($_SERVER['HTTP_HOST'] ?? '', 'localhost') && $locale->get('code') === 'LV') { ?>
+    <?php if (!str_starts_with($_SERVER['HTTP_HOST'] ?? '', 'localhost') && $locale->get('code') === 'LV' && !isset($_GET['no-ads'])) { ?>
         <script async
                 src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4590024878280519"
                 crossorigin="anonymous"></script>

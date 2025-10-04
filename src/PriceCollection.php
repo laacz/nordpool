@@ -3,16 +3,16 @@
 class PriceCollection
 {
     /**
-     * @param Price[] $prices
+     * @param  Price[]  $prices
      */
     public function __construct(private array $prices) {}
 
     /**
      * Transforms prices into a grid structure for display
      *
-     * @param DateTimeZone $tz Target timezone for display
-     * @param bool $hourly If true, averages quarters into hourly values
-     * @param float $multiplier Multiplier to apply (e.g., 1.21 for VAT)
+     * @param  DateTimeZone  $tz  Target timezone for display
+     * @param  bool  $hourly  If true, averages quarters into hourly values
+     * @param  float  $multiplier  Multiplier to apply (e.g., 1.21 for VAT)
      * @return array Grid structure: [date][hour][quarter] => value
      *               For 15min: [date][hour][0,1,2,3] => value
      *               For 60min: [date][hour][0] => averaged_value

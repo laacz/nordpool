@@ -1,6 +1,6 @@
 <?php
 
-class Prices implements IteratorAggregate, Countable
+class Prices implements Countable, IteratorAggregate
 {
     public function __construct(
         /* @property []Price */

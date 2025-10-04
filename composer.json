@@ -1,0 +1,12 @@
+{
+    "name": "nordpool/refactor",
+    "type": "project",
+    "config": {
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    },
+    "require-dev": {
+        "pestphp/pest": "^4.1"
+    }
+}

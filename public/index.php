@@ -4,132 +4,121 @@ if (!$ret) {
     return false;
 }
 
-$request = new Request;
-$countryConfig = getCountryConfig();
-$translations = getTranslations();
+try {
+    $request = new Request;
+    $countryConfig = getCountryConfig();
+    $translations = getTranslations();
 
-$parts = explode('/', $request->path());
-$country = strtoupper($parts[0] ?? 'lv');
-if (!isset($countryConfig[$country])) {
-    $country = 'LV';
-}
+    $parts = explode('/', $request->path());
+    $country = strtoupper($parts[0] ?? 'lv');
+    if (!isset($countryConfig[$country])) {
+        $country = 'LV';
+    }
+    $resolution = $request->get('res') == '60' ? 60 : 15;
 
-$locale = new AppLocale($countryConfig[$country], $translations);
+    $locale = new AppLocale($countryConfig[$country], $translations);
+    $vat = (float)$locale->get('vat');
 
-$tz_local = new DateTimeZone($locale->get('timezone'));
+    $tz_local = new DateTimeZone($locale->get('timezone'));
+    $local_start = new DateTimeImmutable('today', $tz_local);
+    $local_tomorrow_start = new DateTimeImmutable('tomorrow', $tz_local);
+    $local_tomorrow_end = $local_start->modify('+2 day');
+    $current_time = new DateTimeImmutable($request->get('now', 'now'), $tz_local);
 
-$local_start = new DateTimeImmutable('today', $tz_local);
-$local_tomorrow_start = new DateTimeImmutable('tomorrow', $tz_local);
-$local_tomorrow_end = $local_start->modify('+2 day');
+    $viewHelper = new ViewHelper();
 
-$current_time = new DateTimeImmutable($request->get('now', 'now'), $tz_local);
+    if ($request->has('rss')) {
+        $DB = new PDO('sqlite:../nordpool.db');
+        $priceRepo = new PriceRepository($DB);
 
-$resolution = $request->get('res') == '60' ? 60 : 15;
+        // Always fetch 15min data, include both resolutions in RSS
+        $data = $priceRepo->getPrices($local_tomorrow_start, $local_tomorrow_end, strtoupper($country));
+        if (count($data) < 5) {
+            $data = [];
+        }
 
-/** @var float $vat */
-$vat = $locale->get('vat');
+        header('Content-Type: application/xml; charset=utf-8');
+        ?>
+        <feed>
+            <title type="text">Nordpool spot prices tomorrow (<?=$local_tomorrow_start->format('Y-m-d')?>)
+                for <?=$country?></title>
+            <updated><?=$current_time->format('Y-m-d\TH:i:sP')?></updated>
+            <link rel="alternate" type="text/html" href="https://nordpool.didnt.work"/>
+            <id>https://nordpool.didnt.work/feed</id>
+            <?php foreach ($data as $price) {
+                $ts_start = $price->startDate->setTimezone($tz_local);
+                $ts_end = $price->endDate->setTimezone($tz_local);
+                ?>
+                <entry>
+                    <id><?=$country . '-' . $price->resolution . '-' . $ts_start->getTimestamp() . '-' . $ts_end->getTimestamp()?></id>
+                    <ts_start><?=$ts_start->format('Y-m-d\TH:i:sP')?></ts_start>
+                    <ts_end><?=$ts_end->format('Y-m-d\TH:i:sP')?></ts_end>
+                    <resolution><?=$price->resolution?></resolution>
+                    <price><?=htmlspecialchars($price->price)?></price>
+                    <price_vat><?=htmlspecialchars($price->price * (1 + $vat))?></price_vat>
+                </entry>
+            <?php } ?>
+        </feed>
+        <?php
 
-$viewHelper = new ViewHelper();
+        return;
+    }
 
-if ($request->has('rss')) {
+    $mtime = stat('../nordpool.db')['mtime'] ?? 0;
+    $cmtime = Cache::get('last_db_mtime', 0);
+
+    if ($cmtime === 0 || $mtime === 0 || (int)$mtime !== (int)$cmtime || $request->has('purge')) {
+        Cache::clear();
+        Cache::set('last_db_mtime', $mtime);
+    }
+
+    $prices = [];
+
+    $with_vat = $request->has('vat');
+    $quarters_per_hour = $resolution == 15 ? 4 : 1;
+
+    $cache_key = 'prices_' . $locale->get('code') . '_' . $current_time->format('Ymd_Hi') . '_' . ($with_vat ? 'vat' : 'novat') . '_' . $resolution;
+
+    $html = Cache::get($cache_key);
+
+    if (!ob_start('ob_gzhandler')) {
+        ob_start();
+    }
+    if ($html) {
+        header('X-Cache: HIT');
+        echo $html;
+        exit;
+    }
+
     $DB = new PDO('sqlite:../nordpool.db');
     $priceRepo = new PriceRepository($DB);
 
-    // Always fetch 15min data, include both resolutions in RSS
-    $data = $priceRepo->getPrices($local_tomorrow_start, $local_tomorrow_end, strtoupper($country), 15);
-    if (count($data) < 5) {
-        $data = [];
-    }
-
-    header('Content-Type: application/xml; charset=utf-8');
-    ?>
-    <feed>
-        <title type="text">Nordpool spot prices tomorrow (<?=$local_tomorrow_start->format('Y-m-d')?>)
-            for <?=$country?></title>
-        <updated><?=$current_time->format('Y-m-d\TH:i:sP')?></updated>
-        <link rel="alternate" type="text/html" href="https://nordpool.didnt.work"/>
-        <id>https://nordpool.didnt.work/feed</id>
-        <?php foreach ($data as $price) {
-            $ts_start = $price->startDate->setTimezone($tz_local);
-            $ts_end = $price->endDate->setTimezone($tz_local);
-            ?>
-            <entry>
-                <id><?=$country . '-' . $price->resolution . '-' . $ts_start->getTimestamp() . '-' . $ts_end->getTimestamp()?></id>
-                <ts_start><?=$ts_start->format('Y-m-d\TH:i:sP')?></ts_start>
-                <ts_end><?=$ts_end->format('Y-m-d\TH:i:sP')?></ts_end>
-                <resolution><?=$price->resolution?></resolution>
-                <price><?=htmlspecialchars($price->price)?></price>
-                <price_vat><?=htmlspecialchars($price->price * (1 + $vat))?></price_vat>
-            </entry>
-        <?php } ?>
-    </feed>
-    <?php
-
-    return;
-}
-
-$mtime = stat('../nordpool.db')['mtime'] ?? 0;
-$cmtime = Cache::get('last_db_mtime', 0);
-
-if ($cmtime === 0 || $mtime === 0 || (int)$mtime !== (int)$cmtime || $request->has('purge')) {
-    Cache::clear();
-    Cache::set('last_db_mtime', $mtime);
-}
-
-$prices = [];
-
-$with_vat = $request->has('vat');
-$quarters_per_hour = $resolution == 15 ? 4 : 1;
-
-$cache_key = 'prices_' . $locale->get('code') . '_' . $current_time->format('Ymd_Hi') . '_' . ($with_vat ? 'vat' : 'novat') . '_' . $resolution;
-
-$html = Cache::get($cache_key);
-
-if (!ob_start('ob_gzhandler')) {
-    ob_start();
-}
-if ($html) {
-    header('X-Cache: HIT');
-    echo $html;
-    exit;
-}
-
-$DB = new PDO('sqlite:../nordpool.db');
-$priceRepo = new PriceRepository($DB);
-
 // Always fetch 15min data - compute hourly on the fly if needed
-$rows = $priceRepo->getPrices($local_start, $local_tomorrow_end, $locale->get('code'), 15);
+    $rows = $priceRepo->getPrices($local_start, $local_tomorrow_end, $locale->get('code'));
 
-$collection = new PriceCollection($rows);
-$prices = $collection->toGrid($tz_local, $resolution === 60, $with_vat ? 1 + $vat : 1);
+    $collection = new PriceCollection($rows);
+    $prices = $collection->toGrid($tz_local, $resolution === 60, $with_vat ? 1 + $vat : 1);
 
-$today = $prices[$current_time->format('Y-m-d')] ?? [];
-$tomorrow = $prices[$current_time->modify('+1 day')->format('Y-m-d')] ?? [];
+    $today = $prices[$current_time->format('Y-m-d')] ?? [];
+    $tomorrow = $prices[$current_time->modify('+1 day')->format('Y-m-d')] ?? [];
 
 // Flatten for statistics
-$today_flat = $today ? array_merge(...array_map('array_values', $today)) : [];
-$tomorrow_flat = $tomorrow ? array_merge(...array_map('array_values', $tomorrow)) : [];
+    $today_flat = $today ? array_merge(...array_map('array_values', $today)) : [];
+    $tomorrow_flat = $tomorrow ? array_merge(...array_map('array_values', $tomorrow)) : [];
 
-$expected_count = $resolution === 60 ? 24 : 96;
-$today_avg = count($today_flat) === $expected_count ? array_sum($today_flat) / count($today_flat) : null;
-$tomorrow_avg = count($tomorrow_flat) === $expected_count ? array_sum($tomorrow_flat) / count($tomorrow_flat) : null;
+    $expected_count = $resolution === 60 ? 24 : 96;
+    $today_avg = count($today_flat) === $expected_count ? array_sum($today_flat) / count($today_flat) : null;
+    $tomorrow_avg = count($tomorrow_flat) === $expected_count ? array_sum($tomorrow_flat) / count($tomorrow_flat) : null;
 
-$today_max = $today_flat ? max($today_flat) : 0;
-$today_min = $today_flat ? min($today_flat) : 0;
-$tomorrow_max = $tomorrow_flat ? max($tomorrow_flat) : 0;
-$tomorrow_min = $tomorrow_flat ? min($tomorrow_flat) : 0;
+    $today_max = $today_flat ? max($today_flat) : 0;
+    $today_min = $today_flat ? min($today_flat) : 0;
+    $tomorrow_max = $tomorrow_flat ? max($tomorrow_flat) : 0;
+    $tomorrow_min = $tomorrow_flat ? min($tomorrow_flat) : 0;
 
-$now_hour = (int)$current_time->format('H');
-$now_quarter = (int)((int)$current_time->format('i') / 15);
+    $now_hour = (int)$current_time->format('H');
+    $now_quarter = (int)((int)$current_time->format('i') / 15);
 
-foreach ($prices as $k => $day) {
-    ksort($prices[$k]);
-}
-
-$hours = array_keys($today);
-asort($hours);
-
-?>
+    ?>
     <!doctype html>
     <html lang="<?=strtolower($locale->get('code_lc'))?>">
 
@@ -152,12 +141,13 @@ asort($hours);
         <meta http-equiv="X-UA-Compatible" content="ie=edge">
         <title><?=$locale->msg('title')?></title>
         <link rel="alternate" type="application/rss+xml" title="nordpool.didnt.work RSS feed"
-              href="https://nordpool.didnt.work/<?=strtolower($country)?>?rss"/>
+              href="/<?=strtolower($country)?>?rss"/>
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
         <link href="https://fonts.googleapis.com/css2?family=Fira+Sans:wght@100;400;700&display=swap" rel="stylesheet">
         <style>
             <?php $legendColors = $viewHelper->getLegendColors(); ?>
+
             .good {
                 background-color: rgb(<?=$legendColors[0]['color']['r']?>, <?=$legendColors[0]['color']['g']?>, <?=$legendColors[0]['color']['b']?>);
                 color: #fff;
@@ -233,7 +223,8 @@ asort($hours);
                 <th></th>
                 <th colspan="<?=$quarters_per_hour?>"><?=$locale->msg('Šodien')?>
                     <span class="help"><?=$locale->formatDate($current_time, 'd. MMM')?></span><br/>
-                    <small><?=$locale->msg('Vidēji')?> <span><?=$today_avg ? $viewHelper->format($today_avg) : '—'?></span></small>
+                    <small><?=$locale->msg('Vidēji')?>
+                        <span><?=$today_avg ? $viewHelper->format($today_avg) : '—'?></span></small>
                 </th>
                 <th colspan="<?=$quarters_per_hour?>"><?=$locale->msg('Rīt')?>
                     <span
@@ -540,8 +531,7 @@ asort($hours);
                     boundaryGap: false,
                     axisLabel: {
                         formatter: function (value) {
-                            let hour = value.split(':')[0];
-                            return hour;
+                            return value.split(':')[0];
                         },
                         interval: function (index, value) {
                             // Show label only when minutes are :00
@@ -640,7 +630,7 @@ asort($hours);
                         $locale->msg('Excel CSV') .
                         ' (<a href="/nordpool-' . $locale->get('code_lc') . '-excel.csv">' . $locale->msg('15min data') . '</a>, ' .
                         '<a href="/nordpool-' . $locale->get('code_lc') . '-1h-excel.csv">' . $locale->msg('1h average') . '</a>)',
-                        '<a href="https://nordpool.didnt.work/' . strtolower($country) . '?rss">rss</a>'
+                        '<a href="/' . strtolower($country) . '?rss">rss</a>'
                 )?>
         </footer>
 
@@ -732,7 +722,11 @@ asort($hours);
     </body>
 
     </html>
-<?php
-$html = ob_get_clean();
-echo $html;
-Cache::set($cache_key, $html);
+    <?php
+    $html = ob_get_clean();
+    echo $html;
+    Cache::set($cache_key, $html);
+
+} catch (Exception) {
+    abort();
+}

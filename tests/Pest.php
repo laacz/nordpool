@@ -12,3 +12,11 @@
 */
 
 // Simple setup - no custom test case needed for now
+
+// Autoload src classes for tests
+spl_autoload_register(function ($class) {
+    $file = __DIR__ . '/../src/' . $class . '.php';
+    if (file_exists($file)) {
+        require_once $file;
+    }
+});

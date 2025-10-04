@@ -4,34 +4,30 @@ if (!$ret) {
     return false;
 }
 
+$request = new Request();
 $countryConfig = getCountryConfig();
 $translations = getTranslations();
 
 $tz_riga = new DateTimeZone('Europe/Riga');
 $tz_cet = new DateTimeZone('Europe/Berlin');
 
-$path = trim($_SERVER['REQUEST_URI'] ?? '', '/');
-$path = explode('?', $path)[0];
-$parts = explode('/', $path);
+$parts = explode('/', $request->path());
 $country = strtoupper($parts[0] ?? 'lv');
 if (!isset($countryConfig[$country])) {
     $country = 'LV';
 }
 
-$current_time = new DateTimeImmutable('now', $tz_riga);
-if (isset($_GET['now'])) {
-    $current_time = new DateTimeImmutable($_GET['now'], $tz_riga);
-}
+$current_time = new DateTimeImmutable($request->get('now', 'now'), $tz_riga);
 $current_time_cet = $current_time->setTimezone($tz_cet);
 $sql_time = $current_time_cet->format('Y-m-d H:i:s');
 $sql_time_tomorrow = new DateTimeImmutable(date('Y-m-d'), $tz_riga)->modify('+1 day')->setTimeZone($tz_cet)->format('Y-m-d H:00:00');
-$resolution = isset($_GET['res']) && $_GET['res'] == '60' ? 60 : 15;
+$resolution = $request->get('res') == '60' ? 60 : 15;
 
 $locale = new AppLocale($countryConfig[$country], $translations);
 /** @var float $vat */
 $vat = $locale->get('vat');
 
-if (isset($_GET['rss'])) {
+if ($request->has('rss')) {
 
     $DB = new PDO('sqlite:../nordpool.db');
     $sql = "
@@ -75,7 +71,7 @@ if (isset($_GET['rss'])) {
 $mtime = stat('../nordpool.db')['mtime'] ?? 0;
 $cmtime = Cache::get('last_db_mtime', 0);
 
-if ($cmtime === 0 || $mtime === 0 || (int)$mtime !== (int)$cmtime || isset($_GET['purge'])) {
+if ($cmtime === 0 || $mtime === 0 || (int)$mtime !== (int)$cmtime || $request->has('purge')) {
     Cache::clear();
     Cache::set('last_db_mtime', $mtime);
 }
@@ -83,7 +79,7 @@ if ($cmtime === 0 || $mtime === 0 || (int)$mtime !== (int)$cmtime || isset($_GET
 
 $prices = [];
 
-$with_vat = isset($_GET['vat']);
+$with_vat = $request->has('vat');
 $quarters_per_hour = $resolution == 15 ? 4 : 1;
 
 $cache_key = 'prices_' . $locale->get('code') . '_' . $current_time->format('Ymd_Hi') . '_' . ($with_vat ? 'vat' : 'novat') . '_' . $resolution;

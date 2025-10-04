@@ -2,3 +2,5 @@ nordpool
 nordpool.db
 .idea/
 public/*.csv
+cache
+tmp

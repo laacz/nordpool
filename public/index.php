@@ -29,6 +29,8 @@ $resolution = $request->get('res') == '60' ? 60 : 15;
 /** @var float $vat */
 $vat = $locale->get('vat');
 
+$viewHelper = new ViewHelper();
+
 if ($request->has('rss')) {
     $DB = new PDO('sqlite:../nordpool.db');
     $priceRepo = new PriceRepository($DB);
@@ -40,24 +42,26 @@ if ($request->has('rss')) {
     }
 
     header('Content-Type: application/xml; charset=utf-8');
-    ?><feed>
-    <title type="text">Nordpool spot prices tomorrow (<?=$local_tomorrow_start->format('Y-m-d')?>) for <?=$country?></title>
-    <updated><?=$current_time->format('Y-m-d\TH:i:sP')?></updated>
-    <link rel="alternate" type="text/html" href="https://nordpool.didnt.work"/>
-    <id>https://nordpool.didnt.work/feed</id>
-    <?php foreach ($data as $price) {
-        $ts_start = $price->startDate->setTimezone($tz_local);
-        $ts_end = $price->endDate->setTimezone($tz_local);
-        ?>
-        <entry>
-            <id><?=$country . '-' . $price->resolution . '-' . $ts_start->getTimestamp() . '-' . $ts_end->getTimestamp()?></id>
-            <ts_start><?=$ts_start->format('Y-m-d\TH:i:sP')?></ts_start>
-            <ts_end><?=$ts_end->format('Y-m-d\TH:i:sP')?></ts_end>
-            <resolution><?=$price->resolution?></resolution>
-            <price><?=htmlspecialchars($price->price)?></price>
-            <price_vat><?=htmlspecialchars($price->price * (1 + $vat))?></price_vat>
-        </entry>
-    <?php } ?>
+    ?>
+    <feed>
+        <title type="text">Nordpool spot prices tomorrow (<?=$local_tomorrow_start->format('Y-m-d')?>)
+            for <?=$country?></title>
+        <updated><?=$current_time->format('Y-m-d\TH:i:sP')?></updated>
+        <link rel="alternate" type="text/html" href="https://nordpool.didnt.work"/>
+        <id>https://nordpool.didnt.work/feed</id>
+        <?php foreach ($data as $price) {
+            $ts_start = $price->startDate->setTimezone($tz_local);
+            $ts_end = $price->endDate->setTimezone($tz_local);
+            ?>
+            <entry>
+                <id><?=$country . '-' . $price->resolution . '-' . $ts_start->getTimestamp() . '-' . $ts_end->getTimestamp()?></id>
+                <ts_start><?=$ts_start->format('Y-m-d\TH:i:sP')?></ts_start>
+                <ts_end><?=$ts_end->format('Y-m-d\TH:i:sP')?></ts_end>
+                <resolution><?=$price->resolution?></resolution>
+                <price><?=htmlspecialchars($price->price)?></price>
+                <price_vat><?=htmlspecialchars($price->price * (1 + $vat))?></price_vat>
+            </entry>
+        <?php } ?>
     </feed>
     <?php
 
@@ -152,236 +156,21 @@ asort($hours);
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
         <link href="https://fonts.googleapis.com/css2?family=Fira+Sans:wght@100;400;700&display=swap" rel="stylesheet">
-        <script src="/echarts.min.js"></script>
-        <link rel=""
         <style>
-            body {
-                font-family: 'fira sans', sans-serif;
-            }
-
-            header h1 {
-                font-size: 2rem;
-                text-align: left;
-                white-space: nowrap;
-            }
-
-            footer {
-                border-top: 1px solid #aaa;
-                padding: 0 .5rem;
-                margin-top: 2em;
-            }
-
-            .notice {
-                background-color: #e3f2fd;
-                border-left: 4px solid #2196f3;
-                padding: 16px 20px;
-                margin: 16px 0;
-                border-radius: 4px;
-                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-            }
-
-            .notice p {
-                margin: 0;
-                color: #1565c0;
-                font-size: 14px;
-                line-height: 1.5;
-            }
-
-            #app footer p {
-                font-size: smaller;
-                text-align: left;
-            }
-
-            #legend {
-                text-align: center;
-                font-size: smaller;
-            }
-
-            .help {
-                font-weight: 400;
-                display: block;
-                font-size: 80%;
-            }
-
-            body {
-                font-family: sans-serif;
-                font-size: 16px;
-            }
-
-
-            #app {
-                width: 50rem;
-                max-width: 95%;
-                margin: 0 auto;
-            }
-
-            #app p {
-                line-height: 1.5;
-            }
-
-            table {
-                table-layout: fixed;
-                width: 100%;
-                border-collapse: collapse;
-                margin: 0 auto;
-            }
-
-            th,
-            td {
-                padding: 5px 10px;
-                border: 2px solid #fff;
-            }
-
-            table th {
-                white-space: nowrap;
-            }
-
-            tr.now {
-                outline: 3px solid #f00;
-            }
-
-            td.now-quarter {
-                outline: 3px solid #ff0;
-                outline-offset: -3px;
-            }
-
-            td.tomorrow.quarter-0 {
-                border-left: 10px solid #fff;
-            }
-
-            .price {
-                text-align: right;
-                color: #fff;
-                font-family: 'consolas', monospace;
-            }
-
-            th small span {
-                font-family: 'consolas', monospace;
-            }
-
-            .legend {
-                display: inline-block;
-                padding: 5px 10px;
-            }
-
+            <?php $legendColors = $viewHelper->getLegendColors(); ?>
             .good {
-                background-color: rgb(<?= $percentColors[0]['color']['r'] ?>, <?= $percentColors[0]['color']['g'] ?>, <?= $percentColors[0]['color']['b'] ?>);
+                background-color: rgb(<?=$legendColors[0]['color']['r']?>, <?=$legendColors[0]['color']['g']?>, <?=$legendColors[0]['color']['b']?>);
                 color: #fff;
             }
 
             .bad {
-                background-color: rgb(<?= $percentColors[2]['color']['r'] ?>, <?= $percentColors[2]['color']['g'] ?>, <?= $percentColors[2]['color']['b'] ?>);
+                background-color: rgb(<?=$legendColors[2]['color']['r']?>, <?=$legendColors[2]['color']['g']?>, <?=$legendColors[2]['color']['b']?>);
                 color: #fff;
             }
 
-            .extra-decimals {
-                opacity: .4;
-                font-size: 70%;
-            }
-
-            header {
-                display: grid;
-                grid-template-columns: 1fr auto;
-            }
-
-            header p {
-                text-align: right;
-                font-size: smaller;
-            }
-
-            .flag {
-                height: 1.5em;
-                margin: 0 .2em;
-            }
-
-            #chart {
-                height: 400px;
-                margin: 0 auto;
-            }
-
-            #chart-selector {
-                margin: 1em 0;
-                display: grid;
-                grid-template-columns: 1fr auto;
-            }
-
-            /* nice buttons */
-            #chart-selector a {
-                display: inline-block;
-                text-align: center;
-                font-size: 1rem;
-                font-weight: 600;
-                border-radius: 8px;
-                margin: 0 .3em;
-                padding: 0.5em 1em;
-                background-color: #f0f0f0;
-                color: #333;
-                text-decoration: none;
-                transition: background-color 0.3s, color 0.3s;
-            }
-
-            #chart-selector a:hover,
-            #chart-selector a[data-current] {
-                background-color: #333;
-                color: #fff;
-            }
-
-            /* Mobile responsive tables */
-            .mobile-tables {
-                display: none;
-            }
-
-            .mobile-table {
-                margin-bottom: 2em;
-            }
-
-            .mobile-table.hidden {
-                display: none;
-            }
-
-            #mobile-selector {
-                margin: 1em 0;
-                text-align: center;
-            }
-
-            #mobile-selector a {
-                display: inline-block;
-                text-align: center;
-                font-size: 1rem;
-                font-weight: 600;
-                border-radius: 8px;
-                margin: 0 .3em;
-                padding: 0.5em 1em;
-                background-color: #f0f0f0;
-                color: #333;
-                text-decoration: none;
-                transition: background-color 0.3s, color 0.3s;
-            }
-
-            #mobile-selector a:hover,
-            #mobile-selector a[data-current] {
-                background-color: #333;
-                color: #fff;
-            }
-
-            @media (max-width: 768px) {
-                body:not(.res-60) .desktop-table {
-                    display: none;
-                }
-
-                body:not(.res-60) .mobile-tables {
-                    display: block;
-                }
-
-                body.res-60 .mobile-tables {
-                    display: none;
-                }
-
-                #chart-selector {
-                    display: none;
-                }
-            }
         </style>
+        <script src="/echarts.min.js"></script>
+        <link rel="stylesheet" href="/style.css">
     </head>
 
     <body<?=$resolution == 60 ? ' class="res-60"' : ''?>>
@@ -444,13 +233,13 @@ asort($hours);
                 <th></th>
                 <th colspan="<?=$quarters_per_hour?>"><?=$locale->msg('Šodien')?>
                     <span class="help"><?=$locale->formatDate($current_time, 'd. MMM')?></span><br/>
-                    <small><?=$locale->msg('Vidēji')?> <span><?=$today_avg ? format($today_avg) : '—'?></span></small>
+                    <small><?=$locale->msg('Vidēji')?> <span><?=$today_avg ? $viewHelper->format($today_avg) : '—'?></span></small>
                 </th>
                 <th colspan="<?=$quarters_per_hour?>"><?=$locale->msg('Rīt')?>
                     <span
                             class="help"><?=$locale->formatDate($current_time->modify('+1 day'), 'd. MMM')?></span><br/>
                     <small><?=$locale->msg('Vidēji')?>
-                        <span><?=$tomorrow_avg ? format($tomorrow_avg) : '—'?></span></small>
+                        <span><?=$tomorrow_avg ? $viewHelper->format($tomorrow_avg) : '—'?></span></small>
                 </th>
             </tr>
             <tr>
@@ -514,8 +303,8 @@ asort($hours);
                         ?>
                         <td class="price today quarter-<?=$q?>" data-quarter="<?=$q?>"
                             <?php if ($colspan > 1) { ?>colspan="<?=$colspan?>"<?php } ?>
-                            style="background-color: <?=getColorPercentage($value ?? -9999, $today_min, $today_max)?>">
-                            <?=isset($value) ? format($value) : '-'?>
+                            style="background-color: <?=$viewHelper->getColorPercentage($value ?? -9999, $today_min, $today_max)?>">
+                            <?=isset($value) ? $viewHelper->format($value) : '-'?>
                         </td>
                         <?php
                         $q = $next_q;
@@ -542,8 +331,8 @@ asort($hours);
                         ?>
                         <td class="price tomorrow quarter-<?=$q?>" data-quarter="<?=$q?>"
                             <?php if ($colspan > 1) { ?>colspan="<?=$colspan?>"<?php } ?>
-                            style="<?=isset($value) ? '' : 'text-align: center; '?>background-color: <?=getColorPercentage($value ?? -9999, $tomorrow_min, $tomorrow_max)?>">
-                            <?=isset($value) ? format($value) : '-'?>
+                            style="<?=isset($value) ? '' : 'text-align: center; '?>background-color: <?=$viewHelper->getColorPercentage($value ?? -9999, $tomorrow_min, $tomorrow_max)?>">
+                            <?=isset($value) ? $viewHelper->format($value) : '-'?>
                         </td>
                         <?php
                         $q = $next_q;
@@ -574,7 +363,7 @@ asort($hours);
                     <th colspan="<?=$quarters_per_hour + 1?>"><?=$locale->msg('Šodien')?>
                         <span class="help"><?=$locale->formatDate($current_time, 'd. MMM')?></span><br/>
                         <small><?=$locale->msg('Vidēji')?>
-                            <span><?=$today_avg ? format($today_avg) : '—'?></span></small>
+                            <span><?=$today_avg ? $viewHelper->format($today_avg) : '—'?></span></small>
                     </th>
                 </tr>
                 <tr>
@@ -616,8 +405,8 @@ asort($hours);
                             ?>
                             <td class="price quarter-<?=$q?>" data-quarter="<?=$q?>"
                                 <?php if ($colspan > 1) { ?>colspan="<?=$colspan?>"<?php } ?>
-                                style="background-color: <?=getColorPercentage($value ?? -9999, $today_min, $today_max)?>">
-                                <?=isset($value) ? format($value) : '-'?>
+                                style="background-color: <?=$viewHelper->getColorPercentage($value ?? -9999, $today_min, $today_max)?>">
+                                <?=isset($value) ? $viewHelper->format($value) : '-'?>
                             </td>
                             <?php
                             $q = $next_q;
@@ -634,7 +423,7 @@ asort($hours);
                     <th colspan="<?=$quarters_per_hour + 1?>"><?=$locale->msg('Rīt')?>
                         <span class="help"><?=$locale->formatDate($current_time->modify('+1 day'), 'd. MMM')?></span><br/>
                         <small><?=$locale->msg('Vidēji')?>
-                            <span><?=$tomorrow_avg ? format($tomorrow_avg) : '—'?></span></small>
+                            <span><?=$tomorrow_avg ? $viewHelper->format($tomorrow_avg) : '—'?></span></small>
                     </th>
                 </tr>
                 <tr>
@@ -676,8 +465,8 @@ asort($hours);
                             ?>
                             <td class="price quarter-<?=$q?>" data-quarter="<?=$q?>"
                                 <?php if ($colspan > 1) { ?>colspan="<?=$colspan?>"<?php } ?>
-                                style="<?=isset($value) ? '' : 'text-align: center; '?>background-color: <?=getColorPercentage($value ?? -9999, $tomorrow_min, $tomorrow_max)?>">
-                                <?=isset($value) ? format($value) : '-'?>
+                                style="<?=isset($value) ? '' : 'text-align: center; '?>background-color: <?=$viewHelper->getColorPercentage($value ?? -9999, $tomorrow_min, $tomorrow_max)?>">
+                                <?=isset($value) ? $viewHelper->format($value) : '-'?>
                             </td>
                             <?php
                             $q = $next_q;

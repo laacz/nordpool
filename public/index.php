@@ -20,6 +20,10 @@ $locale = new AppLocale($countryConfig[$country], $translations);
 $tz_local = new DateTimeZone($locale->get('timezone'));
 $tz_cet = new DateTimeZone('Europe/Berlin');
 
+$local_start = new DateTimeImmutable('today', $tz_local);
+$local_tomorrow_start = new DateTimeImmutable('tomorrow', $tz_local);
+$local_end = $local_start->modify('+2 day');
+
 $current_time = new DateTimeImmutable($request->get('now', 'now'), $tz_local);
 $current_time_cet = $current_time->setTimezone($tz_cet);
 
@@ -33,8 +37,9 @@ $vat = $locale->get('vat');
 if ($request->has('rss')) {
     $DB = new PDO('sqlite:../nordpool.db');
     $priceRepo = new PriceRepository($DB);
-    $tomorrow_start_cet = (new DateTimeImmutable('tomorrow', $tz_local))->setTimezone($tz_cet);
-    $data = $priceRepo->getTomorrowPrices(strtoupper($country), $tomorrow_start_cet);
+
+    // Always fetch 15min data, include both resolutions in RSS
+    $data = $priceRepo->getPrices($local_tomorrow_start, $local_end, strtoupper($country), 15);
 
     header('Content-Type: application/xml; charset=utf-8');
     ?><feed xmlns="http://www.w3.org/2005/Atom">
@@ -90,53 +95,27 @@ if ($html) {
 $DB = new PDO('sqlite:../nordpool.db');
 $priceRepo = new PriceRepository($DB);
 
-// Fetch data for today and tomorrow in local time
-// Repository handles timezone conversion to Berlin time internally
-$local_start = new DateTimeImmutable('today', $tz_local);
-$local_end = $local_start->modify('+2 day');
+// Always fetch 15min data - compute hourly on the fly if needed
+$rows = $priceRepo->getPrices($local_start, $local_end, $locale->get('code'), 15);
 
-$rows = $priceRepo->getPrices($local_start, $local_end, $locale->get('code'), $resolution);
-
-foreach ($rows as $price) {
-    try {
-        $start = $price->startDate->setTimeZone($tz_local);
-
-        $hour = (int) $start->format('H');
-        $minute = (int) $start->format('i');
-        $quarter = $resolution == 15 ? (int) ($minute / 15) : 0; // 0, 1, 2, or 3 for 15min; always 0 for 60min
-
-        $prices[$start->format('Y-m-d')][$hour][$quarter] = round(($with_vat ? 1 + $vat : 1) * $price->price, 4);
-    } catch (Exception $e) {
-        continue;
-    }
-}
+$collection = new PriceCollection($rows);
+$prices = $collection->toGrid($tz_local, $resolution === 60, $with_vat ? 1 + $vat : 1);
 
 $today = $prices[$current_time->format('Y-m-d')] ?? [];
 $tomorrow = $prices[$current_time->modify('+1 day')->format('Y-m-d')] ?? [];
 
-// Flatten today and tomorrow for calculations
-$today_flat = [];
-foreach ($today as $hour => $quarters) {
-    foreach ($quarters as $quarter => $value) {
-        $today_flat[] = $value;
-    }
-}
+// Flatten for statistics
+$today_flat = $today ? array_merge(...array_map('array_values', $today)) : [];
+$tomorrow_flat = $tomorrow ? array_merge(...array_map('array_values', $tomorrow)) : [];
 
-$tomorrow_flat = [];
-foreach ($tomorrow as $hour => $quarters) {
-    foreach ($quarters as $quarter => $value) {
-        $tomorrow_flat[] = $value;
-    }
-}
-
-$expected_count = 24 * $quarters_per_hour; // 96 for 15min, 24 for 60min
+$expected_count = $resolution === 60 ? 24 : 96;
 $today_avg = count($today_flat) === $expected_count ? array_sum($today_flat) / count($today_flat) : null;
 $tomorrow_avg = count($tomorrow_flat) === $expected_count ? array_sum($tomorrow_flat) / count($tomorrow_flat) : null;
 
-$today_max = count($today_flat) ? max($today_flat) : 0;
-$today_min = count($today_flat) ? min($today_flat) : 0;
-$tomorrow_max = count($tomorrow_flat) ? max($tomorrow_flat) : 0;
-$tomorrow_min = count($tomorrow_flat) ? min($tomorrow_flat) : 0;
+$today_max = $today_flat ? max($today_flat) : 0;
+$today_min = $today_flat ? min($today_flat) : 0;
+$tomorrow_max = $tomorrow_flat ? max($tomorrow_flat) : 0;
+$tomorrow_min = $tomorrow_flat ? min($tomorrow_flat) : 0;
 
 $now_hour = (int) $current_time->format('H');
 $now_quarter = (int) ((int) $current_time->format('i') / 15);

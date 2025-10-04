@@ -47,37 +47,4 @@ class PriceRepository
             $stmt->fetchAll(PDO::FETCH_ASSOC),
         );
     }
-
-    /**
-     * @return Price[]
-     */
-    public function getTomorrowPrices(
-        string $country,
-        DateTimeImmutable $tomorrowDate
-    ): array {
-        $sql = '
-            SELECT ts_start, ts_end, value, resolution_minutes as resolution
-            FROM price_indices
-            WHERE country = :country
-              AND ts_start >= DATE(:tomorrow)
-            ORDER BY ts_start ASC
-        ';
-
-        $stmt = $this->db->prepare($sql);
-        $stmt->execute([
-            'country' => $country,
-            'tomorrow' => $tomorrowDate->setTimezone($this->tz)->format('Y-m-d H:i:s'),
-        ]);
-
-        return array_map(
-            fn ($row) => new Price(
-                price: (float) $row['value'] / 1000,
-                startDate: new DateTimeImmutable($row['ts_start']),
-                endDate: new DateTimeImmutable($row['ts_end']),
-                country: $country,
-                resolution: (int) $row['resolution']
-            ),
-            $stmt->fetchAll(PDO::FETCH_ASSOC)
-        );
-    }
 }

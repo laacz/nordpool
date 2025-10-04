@@ -48,30 +48,6 @@ test('uses prepared statements to prevent SQL injection', function () {
     expect($prices)->toHaveCount(0);
 });
 
-test('fetches tomorrow prices', function () {
-    $pdo = new PDO('sqlite::memory:');
-    $pdo->exec('CREATE TABLE price_indices (
-        country TEXT,
-        ts_start TEXT,
-        ts_end TEXT,
-        value REAL,
-        resolution_minutes INTEGER
-    )');
-    $pdo->exec("INSERT INTO price_indices VALUES
-        ('LV', '2025-10-05 00:00:00', '2025-10-05 00:15:00+00:00', 100.0, 15),
-        ('LV', '2025-10-05 00:15:00', '2025-10-05 00:30:00+00:00', 110.0, 15)
-    ");
-
-    $repo = new PriceRepository($pdo);
-    $tomorrow = new DateTimeImmutable('2025-10-05 00:00:00');
-    $prices = $repo->getTomorrowPrices('LV', $tomorrow);
-
-    expect($prices)->toHaveCount(2);
-    expect($prices[0])->toBeInstanceOf(Price::class);
-    expect($prices[0]->price)->toBe(0.1);
-    expect($prices[1]->price)->toBe(0.11);
-});
-
 test('filters by country correctly', function () {
     $pdo = new PDO('sqlite::memory:');
     $pdo->exec('CREATE TABLE price_indices (
@@ -186,40 +162,6 @@ test('respects exclusive end boundary', function () {
     expect($prices[0]->price)->toBe(0.1);
 });
 
-test('getTomorrowPrices returns empty array when no data', function () {
-    $pdo = new PDO('sqlite::memory:');
-    $pdo->exec('CREATE TABLE price_indices (
-        country TEXT, ts_start TEXT, ts_end TEXT, value REAL, resolution_minutes INTEGER
-    )');
-
-    $repo = new PriceRepository($pdo);
-    $tomorrow = new DateTimeImmutable('2025-10-05 00:00:00');
-    $prices = $repo->getTomorrowPrices('LV', $tomorrow);
-
-    expect($prices)->toBeEmpty();
-});
-
-test('getTomorrowPrices returns results in ascending order', function () {
-    $pdo = new PDO('sqlite::memory:');
-    $pdo->exec('CREATE TABLE price_indices (
-        country TEXT, ts_start TEXT, ts_end TEXT, value REAL, resolution_minutes INTEGER
-    )');
-    $pdo->exec("INSERT INTO price_indices VALUES
-        ('LV', '2025-10-05 12:00:00', '2025-10-05 12:15:00+00:00', 300.0, 15),
-        ('LV', '2025-10-05 06:00:00', '2025-10-05 06:15:00+00:00', 200.0, 15),
-        ('LV', '2025-10-05 00:00:00', '2025-10-05 00:15:00+00:00', 100.0, 15)
-    ");
-
-    $repo = new PriceRepository($pdo);
-    $tomorrow = new DateTimeImmutable('2025-10-05 00:00:00');
-    $prices = $repo->getTomorrowPrices('LV', $tomorrow);
-
-    expect($prices)->toHaveCount(3);
-    expect($prices[0]->price)->toBe(0.1);
-    expect($prices[1]->price)->toBe(0.2);
-    expect($prices[2]->price)->toBe(0.3);
-});
-
 test('requires DateTimeImmutable for immutability', function () {
     $pdo = new PDO('sqlite::memory:');
     $pdo->exec('CREATE TABLE price_indices (
@@ -264,28 +206,6 @@ test('filters out data outside date range', function () {
     $start = new DateTimeImmutable('2025-10-03 00:00:00', $UTC);
     $end = new DateTimeImmutable('2025-10-05 00:00:00', $UTC);
     $prices = $repo->getPrices($start, $end, 'LV', 15);
-
-    expect($prices)->toHaveCount(3);
-    expect($prices[0]->price)->toBe(0.1);
-    expect($prices[1]->price)->toBe(0.15);
-    expect($prices[2]->price)->toBe(0.2);
-});
-
-test('getTomorrowPrices filters out data before tomorrow', function () {
-    $pdo = new PDO('sqlite::memory:');
-    $pdo->exec('CREATE TABLE price_indices (
-        country TEXT, ts_start TEXT, ts_end TEXT, value REAL, resolution_minutes INTEGER
-    )');
-    $pdo->exec("INSERT INTO price_indices VALUES
-        ('LV', '2025-10-04 23:45:00', '2025-10-04 23:59:00+00:00', 50.0, 15),
-        ('LV', '2025-10-05 00:00:00', '2025-10-05 00:15:00+00:00', 100.0, 15),
-        ('LV', '2025-10-05 12:00:00', '2025-10-05 12:15:00+00:00', 150.0, 15),
-        ('LV', '2025-10-06 00:00:00', '2025-10-06 00:15:00+00:00', 200.0, 15)
-    ");
-
-    $repo = new PriceRepository($pdo);
-    $tomorrow = new DateTimeImmutable('2025-10-05 00:00:00');
-    $prices = $repo->getTomorrowPrices('LV', $tomorrow);
 
     expect($prices)->toHaveCount(3);
     expect($prices[0]->price)->toBe(0.1);

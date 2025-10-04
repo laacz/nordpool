@@ -302,7 +302,80 @@ Revert index.php changes, keep repository class and tests for later.
 
 ---
 
-## Step 3: Extract Business Logic (Price Service)
+## Step 3: Extract Price Transformation Logic ✅ COMPLETED
+
+### Goal
+
+Move price transformation logic into a dedicated collection class.
+
+### Architectural Decision
+
+**Simplified approach taken:**
+- Always fetch 15min resolution data (it's the base resolution)
+- Compute hourly averages on-the-fly when needed (no need to query 60min separately)
+- Use `PriceCollection` class for transformation, stdlib functions for statistics
+- No artificial "service" class - just domain objects
+
+### What Was Created
+
+1. **`src/PriceCollection.php`** - Single class with `toGrid()` method:
+   - Takes `Price[]` (always 15min data)
+   - Returns `[date][hour][quarter] => value` structure
+   - If `$hourly = true`, averages 4 quarters into single hourly value
+   - Applies VAT multiplier during transformation
+   - Handles timezone conversion
+
+2. **`tests/PriceCollectionTest.php`** - Comprehensive test coverage:
+   - 15min grid transformation
+   - Hourly averaging (4 quarters → 1 value)
+   - VAT multiplier application
+   - Timezone conversion
+   - Empty arrays, partial data
+   - Rounding precision
+
+3. **Updated `public/index.php`**:
+   - Changed to always fetch 15min: `getPrices(..., 15)`
+   - Replaced 40 lines of transformation logic with:
+     ```php
+     $collection = new PriceCollection($rows);
+     $prices = $collection->toGrid($tz_local, $resolution === 60, $with_vat ? 1 + $vat : 1);
+     ```
+   - Flattening with stdlib: `array_merge(...array_map('array_values', $today))`
+   - Stats with stdlib: `min()`, `max()`, `array_sum()` / `count()`
+
+4. **Updated RSS section** - Now fetches only 15min data (was fetching both 15+60)
+
+### Benefits Achieved
+
+- ✅ 40 lines reduced to ~3 lines in index.php
+- ✅ Testable transformation logic
+- ✅ No resolution parameter passing throughout codebase
+- ✅ Single source of truth (15min data)
+- ✅ Hourly computed on demand, not stored/fetched separately
+- ✅ Clean separation: collection transforms, stdlib analyzes
+
+### Verification
+
+- ✅ `./vendor/bin/pest` - all 34 tests pass
+- ✅ Homepage displays correctly
+- ✅ VAT toggle works
+- ✅ Resolution toggle works (15min ↔ 60min)
+- ✅ RSS feed works
+
+### Original Plan vs What We Did
+
+**Original plan suggested:** `PriceService` with methods like `transformPrices()`, `flattenPrices()`, `calculateAverage()`, etc.
+
+**What we did instead:** Single `PriceCollection` class + stdlib functions. Simpler, cleaner, no over-engineering.
+
+---
+
+## Step 3 (Original - Skipped): Extract Business Logic (Price Service)
+
+This step was replaced with the simpler PriceCollection approach above.
+
+<details>
+<summary>Original plan (click to expand)</summary>
 
 ### Goal
 
@@ -482,6 +555,8 @@ Move price calculations and transformations into pure, testable functions.
 ### Rollback Strategy
 
 Keep the service and tests, revert index.php changes.
+
+</details>
 
 ---
 

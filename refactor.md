@@ -186,9 +186,9 @@ Move all SQL queries into a dedicated repository class.
        public function __construct(private PDO $db) {}
 
        public function getPricesForDateRange(
-           string $country,
            string $fromDate,
            string $toDate,
+           string $country,
            int $resolution = 15
        ): array {
            $sql = "
@@ -252,7 +252,7 @@ Move all SQL queries into a dedicated repository class.
        ");
 
        $repo = new PriceRepository($pdo);
-       $prices = $repo->getPricesForDateRange('LV', '2025-10-04', '2025-10-04', 15);
+       $prices = $repo->getPricesForDateRange('2025-10-04', '2025-10-04', 'LV', 15);
 
        expect($prices)->toHaveCount(1);
        expect($prices[0]['value'])->toBe(123.45);
@@ -268,9 +268,9 @@ Move all SQL queries into a dedicated repository class.
 
        // Should not throw or cause issues with SQL injection attempt
        $prices = $repo->getPricesForDateRange(
+           '2025-10-04',
+           '2025-10-04',
            "LV' OR '1'='1",
-           '2025-10-04',
-           '2025-10-04',
            15
        );
 
@@ -284,7 +284,7 @@ Move all SQL queries into a dedicated repository class.
      - Replace lines 37-43 SQL with: `$data = $priceRepo->getTomorrowPrices(strtoupper($country), $sql_time_tomorrow);`
    - After `$DB = new PDO(...)` on line 101 (main section):
      - Add: `$priceRepo = new PriceRepository($DB);`
-     - Replace lines 103-111 SQL with: `$rows = $priceRepo->getPricesForDateRange($locale->get('code'), $sql_time, $sql_time, $resolution);`
+     - Replace lines 103-111 SQL with: `$rows = $priceRepo->getPricesForDateRange($sql_time, $sql_time, $locale->get('code'), $resolution);`
      - Replace `foreach ($DB->query($sql) as $row)` with `foreach ($rows as $row)`
 
 ### Verification
@@ -1530,7 +1530,7 @@ Reduce index.php to just wiring and flow control (~100 lines).
    $priceRepo = new PriceRepository($DB);
    $sql_time = $current_time_cet->format('Y-m-d H:i:s');
 
-   $rows = $priceRepo->getPricesForDateRange($locale->get('code'), $sql_time, $sql_time, $resolution);
+   $rows = $priceRepo->getPricesForDateRange($sql_time, $sql_time, $locale->get('code'), $resolution);
 
    $vatMultiplier = $with_vat ? 1 + $vat : 1;
    $prices = $priceService->transformPrices($rows, $tz_cet, $tz_riga, $resolution, $vatMultiplier);

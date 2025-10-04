@@ -2,7 +2,7 @@
 
 // Simple PSR-4 autoloader
 spl_autoload_register(function ($class) {
-    $file = __DIR__ . '/../src/' . $class . '.php';
+    $file = __DIR__.'/../src/'.$class.'.php';
     if (file_exists($file)) {
         require_once $file;
     }
@@ -10,9 +10,14 @@ spl_autoload_register(function ($class) {
 
 if (php_sapi_name() == 'cli-server') {
     $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-    if ($uri !== '/' && file_exists(__DIR__ . $uri)) {
+    if ($uri !== '/' && file_exists(__DIR__.$uri)) {
         return false;
     }
+}
+
+function dump(...$vars): void
+{
+    var_dump(...$vars);
 }
 
 function dd(...$vars): void
@@ -23,7 +28,7 @@ function dd(...$vars): void
         var_dump($var);
         echo '</pre>';
     }
-    die(1);
+    exit(1);
 }
 
 function abort(int $code = 500, string $message = ''): void
@@ -32,24 +37,25 @@ function abort(int $code = 500, string $message = ''): void
     if ($message) {
         echo $message;
     }
-    die(1);
+    exit(1);
 }
 
 function format($number): string
 {
     $num = number_format($number, 4);
-    return substr($num, 0, strpos($num, '.') + 3) .
-        '<span class="extra-decimals">' . substr($num, -2) . '</span>';
+
+    return substr($num, 0, strpos($num, '.') + 3).
+        '<span class="extra-decimals">'.substr($num, -2).'</span>';
 }
 
-# 19720c, 36720c, 720c0c
+// 19720c, 36720c, 720c0c
 $percentColors = [
     // ['pct' => 0.0, 'color' => ['r' => 0x00, 'g' => 0xff, 'b' => 0]],
     // ['pct' => 0.5, 'color' => ['r' => 0xff, 'g' => 0xff, 'b' => 0]],
     // ['pct' => 1.0, 'color' => ['r' => 0xff, 'g' => 0x00, 'b' => 0]],
     ['pct' => 0.0, 'color' => ['r' => 0x00, 'g' => 0x88, 'b' => 0x00]],
-    ['pct' => 0.5, 'color' => ['r' => 0xaa, 'g' => 0xaa, 'b' => 0x00]],
-    ['pct' => 1.0, 'color' => ['r' => 0xaa, 'g' => 0x00, 'b' => 0x00]],
+    ['pct' => 0.5, 'color' => ['r' => 0xAA, 'g' => 0xAA, 'b' => 0x00]],
+    ['pct' => 1.0, 'color' => ['r' => 0xAA, 'g' => 0x00, 'b' => 0x00]],
 ];
 
 function getColorPercentage($value, $min, $max): string
@@ -79,7 +85,8 @@ function getColorPercentage($value, $min, $max): string
         'g' => floor($lower['color']['g'] * $pctLower + $upper['color']['g'] * $pctUpper),
         'b' => floor($lower['color']['b'] * $pctLower + $upper['color']['b'] * $pctUpper),
     ];
-    return 'rgb(' . implode(',', [$color['r'], $color['g'], $color['b']]) . ')';
+
+    return 'rgb('.implode(',', [$color['r'], $color['g'], $color['b']]).')';
 }
 
 function getTranslations(): array
@@ -216,6 +223,7 @@ function getCountryConfig(?string $country = null): array
             'name' => 'Latvija',
             'flag' => '🇱🇻',
             'locale' => 'lv_LV',
+            'timezone' => 'Europe/Riga',
             'vat' => 0.21,
         ],
         'LT' => [
@@ -224,6 +232,7 @@ function getCountryConfig(?string $country = null): array
             'name' => 'Lietuva',
             'flag' => '🇱🇹',
             'locale' => 'lt_LT',
+            'timezone' => 'Europe/Vilnius',
             'vat' => 0.21,
         ],
         'EE' => [
@@ -232,6 +241,7 @@ function getCountryConfig(?string $country = null): array
             'name' => 'Eesti',
             'flag' => '🇪🇪',
             'locale' => 'et_EE',
+            'timezone' => 'Europe/Tallinn',
             'vat' => 0.20,
         ],
     ];
@@ -239,6 +249,7 @@ function getCountryConfig(?string $country = null): array
     if ($country === null) {
         return $countryConfig;
     }
+
     return $countryConfig[$country] ?? $countryConfig['LV'];
 }
 
@@ -247,11 +258,10 @@ class AppLocale
     private IntlDateFormatter $dateFormatter;
 
     public function __construct(
-        public ?array  $config,
-        public ?array  $translations,
+        public ?array $config,
+        public ?array $translations,
         public ?string $country = 'LV',
-    )
-    {
+    ) {
         if ($config === null || $this->translations === null) {
             $this->config = getCountryConfig($country);
             $this->translations = getTranslations();
@@ -277,7 +287,7 @@ class AppLocale
     */
     public function formatDate(mixed $time, string $format = 'd.m.Y H:i'): string|false
     {
-        if (!$this->dateFormatter->setPattern($format)) {
+        if (! $this->dateFormatter->setPattern($format)) {
             return false;
         }
 
@@ -289,7 +299,7 @@ class AppLocale
         return $this->config[$key] ?? $default;
     }
 
-    function msg(string $msg): string
+    public function msg(string $msg): string
     {
         return $this->translations[$msg][$this->config['code']] ?? $msg;
     }
@@ -299,37 +309,40 @@ class AppLocale
         return vsprintf($this->msg($msg), $args);
     }
 
-    function route(string $route): string
+    public function route(string $route): string
     {
         $lang = match ($this->config['code']) {
             'LV' => '',
-            default => $this->config['code_lc'] . '/',
+            default => $this->config['code_lc'].'/',
         };
-        return '/' . $lang . ltrim($route, '/');
+
+        return '/'.$lang.ltrim($route, '/');
     }
 }
 
-class Cache {
-    const string DIR = __DIR__ . '/../cache/';
+class Cache
+{
+    const string DIR = __DIR__.'/../cache/';
 
     public static function get(string $key, mixed $default = null): mixed
     {
-        $file = self::DIR . md5($key) . '.cache';
+        $file = self::DIR.md5($key).'.cache';
         if (file_exists($file) && (time() - filemtime($file) < 3600)) {
             return unserialize(file_get_contents($file));
         }
+
         return $default;
     }
 
     public static function set(string $key, mixed $value): void
     {
-        $file = self::DIR . md5($key) . '.cache';
+        $file = self::DIR.md5($key).'.cache';
         file_put_contents($file, serialize($value), LOCK_EX);
     }
 
     public static function delete(string $key): void
     {
-        $file = self::DIR . md5($key) . '.cache';
+        $file = self::DIR.md5($key).'.cache';
         if (file_exists($file)) {
             unlink($file);
         }
@@ -337,22 +350,24 @@ class Cache {
 
     public static function clear(): void
     {
-        $files = glob(self::DIR . '*.cache');
+        $files = glob(self::DIR.'*.cache');
         foreach ($files as $file) {
             unlink($file);
         }
     }
 }
 
-class Lock {
-    const string DIR = __DIR__ . '/../cache/';
+class Lock
+{
+    const string DIR = __DIR__.'/../cache/';
 
     private string $file;
+
     private $handle;
 
     public function __construct(string $key)
     {
-        $this->file = self::DIR . md5($key) . '.lock';
+        $this->file = self::DIR.md5($key).'.lock';
         $this->handle = fopen($this->file, 'w+');
     }
 

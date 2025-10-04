@@ -7,6 +7,7 @@
         }
     },
     "require-dev": {
-        "pestphp/pest": "^4.1"
+        "pestphp/pest": "^4.1",
+        "laravel/pint": "^1.25"
     }
 }

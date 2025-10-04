@@ -1,65 +1,58 @@
 <?php
 $ret = require 'functions.php';
-if (!$ret) {
+if (! $ret) {
     return false;
 }
 
-$request = new Request();
+$request = new Request;
 $countryConfig = getCountryConfig();
 $translations = getTranslations();
 
-$tz_riga = new DateTimeZone('Europe/Riga');
-$tz_cet = new DateTimeZone('Europe/Berlin');
-
 $parts = explode('/', $request->path());
 $country = strtoupper($parts[0] ?? 'lv');
-if (!isset($countryConfig[$country])) {
+if (! isset($countryConfig[$country])) {
     $country = 'LV';
 }
 
-$current_time = new DateTimeImmutable($request->get('now', 'now'), $tz_riga);
+$locale = new AppLocale($countryConfig[$country], $translations);
+
+// Timezones: country's local time and Berlin (data storage)
+$tz_local = new DateTimeZone($locale->get('timezone'));
+$tz_cet = new DateTimeZone('Europe/Berlin');
+
+$current_time = new DateTimeImmutable($request->get('now', 'now'), $tz_local);
 $current_time_cet = $current_time->setTimezone($tz_cet);
+
 $sql_time = $current_time_cet->format('Y-m-d H:i:s');
-$sql_time_tomorrow = new DateTimeImmutable(date('Y-m-d'), $tz_riga)->modify('+1 day')->setTimeZone($tz_cet)->format('Y-m-d H:00:00');
+$sql_time_tomorrow = new DateTimeImmutable(date('Y-m-d'), $tz_local)->modify('+1 day')->setTimeZone($tz_cet)->format('Y-m-d H:00:00');
 $resolution = $request->get('res') == '60' ? 60 : 15;
 
-$locale = new AppLocale($countryConfig[$country], $translations);
 /** @var float $vat */
 $vat = $locale->get('vat');
 
 if ($request->has('rss')) {
-
     $DB = new PDO('sqlite:../nordpool.db');
-    $sql = "
-    SELECT ts_start, ts_end, value, resolution_minutes as resolution
-      FROM price_indices
-     WHERE country = " . $DB->quote(strtoupper($country)) . "
-       AND ts_start >= DATE(" . $DB->quote($sql_time_tomorrow) . ")
-    ORDER BY ts_start ASC
-    ";
-    // dd($sql);
-
-    $data = $DB->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+    $priceRepo = new PriceRepository($DB);
+    $tomorrow_start_cet = (new DateTimeImmutable('tomorrow', $tz_local))->setTimezone($tz_cet);
+    $data = $priceRepo->getTomorrowPrices(strtoupper($country), $tomorrow_start_cet);
 
     header('Content-Type: application/xml; charset=utf-8');
     ?><feed xmlns="http://www.w3.org/2005/Atom">
-        <title type="text">Nordpool spot prices tomorrow (<?=substr($sql_time_tomorrow, 0, 10)?>) for <?=$country?></title>
+        <title type="text">Nordpool spot prices tomorrow (<?= substr($sql_time_tomorrow, 0, 10)?>) for <?= $country?></title>
         <updated><?= $current_time->format('Y-m-d\TH:i:sP') ?></updated>
         <link rel="alternate" type="text/html" href="https://nordpool.didnt.work"/>
         <id>https://nordpool.didnt.work/feed</id>
-        <?php foreach ($data as $row) {
-            $ts_start = new DateTime($row['ts_start'], $tz_cet)->setTimezone(new DateTimeZone('Europe/Riga'));
-            $ts_end = new DateTime($row['ts_end'], $tz_cet)->setTimezone(new DateTimeZone('Europe/Riga'));
-            $value = (float)$row['value']/1000;
-            $resolution = $row['resolution'];
-        ?>
+        <?php foreach ($data as $price) {
+            $ts_start = $price->startDate->setTimezone($tz_local);
+            $ts_end = $price->endDate->setTimezone($tz_local);
+            ?>
         <entry>
-            <id><?=$country.'-'.$resolution.'-'.$ts_start->getTimestamp().'-'.$ts_end->getTimestamp()?></id>
+            <id><?= $country.'-'.$price->resolution.'-'.$ts_start->getTimestamp().'-'.$ts_end->getTimestamp()?></id>
             <ts_start><?= $ts_start->format('Y-m-d\TH:i:sP') ?></ts_start>
             <ts_end><?= $ts_end->format('Y-m-d\TH:i:sP') ?></ts_end>
-            <resolution><?= $resolution ?></resolution>
-            <price><?= htmlspecialchars($value) ?></price>
-            <price_vat><?= htmlspecialchars($value * (1+$vat)) ?></price_vat>
+            <resolution><?= $price->resolution ?></resolution>
+            <price><?= htmlspecialchars($price->price) ?></price>
+            <price_vat><?= htmlspecialchars($price->price * (1 + $vat)) ?></price_vat>
         </entry>
         <?php } ?>
     </feed>
@@ -71,63 +64,48 @@ if ($request->has('rss')) {
 $mtime = stat('../nordpool.db')['mtime'] ?? 0;
 $cmtime = Cache::get('last_db_mtime', 0);
 
-if ($cmtime === 0 || $mtime === 0 || (int)$mtime !== (int)$cmtime || $request->has('purge')) {
+if ($cmtime === 0 || $mtime === 0 || (int) $mtime !== (int) $cmtime || $request->has('purge')) {
     Cache::clear();
     Cache::set('last_db_mtime', $mtime);
 }
-
 
 $prices = [];
 
 $with_vat = $request->has('vat');
 $quarters_per_hour = $resolution == 15 ? 4 : 1;
 
-$cache_key = 'prices_' . $locale->get('code') . '_' . $current_time->format('Ymd_Hi') . '_' . ($with_vat ? 'vat' : 'novat') . '_' . $resolution;
+$cache_key = 'prices_'.$locale->get('code').'_'.$current_time->format('Ymd_Hi').'_'.($with_vat ? 'vat' : 'novat').'_'.$resolution;
 
 $html = Cache::get($cache_key);
 
-if (!ob_start('ob_gzhandler')) ob_start();
+if (! ob_start('ob_gzhandler')) {
+    ob_start();
+}
 if ($html) {
     header('X-Cache: HIT');
     echo $html;
     exit;
 }
 
-
 $DB = new PDO('sqlite:../nordpool.db');
+$priceRepo = new PriceRepository($DB);
 
-$sql = "
-SELECT *
-  FROM price_indices
- WHERE country = " . $DB->quote($locale->get('code')) . "
-   AND ts_start >= DATE(" . $DB->quote($sql_time) . ", '-2 day')
-   AND ts_start <= DATE(" . $DB->quote($sql_time) . ", '+3 day')
-   AND resolution_minutes = " . $resolution . "
-ORDER BY ts_start DESC
-";
+// Fetch data for today and tomorrow in local time
+// Repository handles timezone conversion to Berlin time internally
+$local_start = new DateTimeImmutable('today', $tz_local);
+$local_end = $local_start->modify('+2 day');
 
-// $sql = "
-// SELECT *
-//   FROM spot_prices
-//  WHERE country = " . $DB->quote($locale->get('code')) . "
-//    AND ts_start >= DATE(" . $DB->quote($sql_time) . ", '-2 day')
-//    AND ts_start <= DATE(" . $DB->quote($sql_time) . ", '+3 day')
-// ORDER BY ts_start DESC
-// ";
+$rows = $priceRepo->getPrices($local_start, $local_end, $locale->get('code'), $resolution);
 
-
-foreach ($DB->query($sql) as $row) {
+foreach ($rows as $price) {
     try {
-        $start = new DateTime($row['ts_start'], $tz_cet);
-        $end = new DateTime($row['ts_end'], $tz_cet);
-        $start->setTimeZone($tz_riga);
-        $end->setTimeZone($tz_riga);
+        $start = $price->startDate->setTimeZone($tz_local);
 
-        $hour = (int)$start->format('H');
-        $minute = (int)$start->format('i');
-        $quarter = $resolution == 15 ? (int)($minute / 15) : 0; // 0, 1, 2, or 3 for 15min; always 0 for 60min
+        $hour = (int) $start->format('H');
+        $minute = (int) $start->format('i');
+        $quarter = $resolution == 15 ? (int) ($minute / 15) : 0; // 0, 1, 2, or 3 for 15min; always 0 for 60min
 
-        $prices[$start->format('Y-m-d')][$hour][$quarter] = round(($with_vat ? 1 + $vat : 1) * ((float)$row['value']) / 1000, 4);
+        $prices[$start->format('Y-m-d')][$hour][$quarter] = round(($with_vat ? 1 + $vat : 1) * $price->price, 4);
     } catch (Exception $e) {
         continue;
     }
@@ -160,8 +138,8 @@ $today_min = count($today_flat) ? min($today_flat) : 0;
 $tomorrow_max = count($tomorrow_flat) ? max($tomorrow_flat) : 0;
 $tomorrow_min = count($tomorrow_flat) ? min($tomorrow_flat) : 0;
 
-$now_hour = (int)$current_time->format('H');
-$now_quarter = (int)((int)$current_time->format('i') / 15);
+$now_hour = (int) $current_time->format('H');
+$now_quarter = (int) ((int) $current_time->format('i') / 15);
 
 foreach ($prices as $k => $day) {
     ksort($prices[$k]);
@@ -172,7 +150,7 @@ asort($hours);
 
 ?>
 <!doctype html>
-<html lang="<?=strtolower($locale->get('code_lc'))?>">
+<html lang="<?= strtolower($locale->get('code_lc'))?>">
 
 <head>
     <!-- Google tag (gtag.js) -->
@@ -191,8 +169,8 @@ asort($hours);
     <meta name="viewport"
           content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <title><?=$locale->msg('title')?></title>
-    <link rel="alternate" type="application/rss+xml" title="nordpool.didnt.work RSS feed" href="https://nordpool.didnt.work/<?=strtolower($country)?>?rss"/>
+    <title><?= $locale->msg('title')?></title>
+    <link rel="alternate" type="application/rss+xml" title="nordpool.didnt.work RSS feed" href="https://nordpool.didnt.work/<?= strtolower($country)?>?rss"/>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fira+Sans:wght@100;400;700&display=swap" rel="stylesheet">
@@ -428,7 +406,7 @@ asort($hours);
     </style>
 </head>
 
-<body<?=$resolution == 60 ? ' class="res-60"' : ''?>>
+<body<?= $resolution == 60 ? ' class="res-60"' : ''?>>
 
 <div id="app">
 
@@ -438,38 +416,38 @@ asort($hours);
         </h1>
         <p>
             <?php foreach ($countryConfig as $code => $config) { ?>
-                <a class="flag" href="/<?=$config['code_lc'] === 'lv' ? '' : $config['code_lc']?>"><img
-                            src="/<?=$config['code_lc']?>.svg" alt="<?=$config['name']?>" width="32"
+                <a class="flag" href="/<?= $config['code_lc'] === 'lv' ? '' : $config['code_lc']?>"><img
+                            src="/<?= $config['code_lc']?>.svg" alt="<?= $config['name']?>" width="32"
                             height="32"/></a>
             <?php } ?>
             <br/>
-            <?=$locale->msg('subtitle')?><br/>
+            <?= $locale->msg('subtitle')?><br/>
             <?php if ($with_vat) { ?>
-                <?=$locale->msg('it is with VAT')?> <?=round($vat * 100)?>% (<a
-                        href="<?=$locale->route('/') . ($resolution == 60 ? '?res=60' : '')?>"><?=$locale->msg('show without VAT')?></a>)
+                <?= $locale->msg('it is with VAT')?> <?= round($vat * 100)?>% (<a
+                        href="<?= $locale->route('/').($resolution == 60 ? '?res=60' : '')?>"><?= $locale->msg('show without VAT')?></a>)
             <?php } else { ?>
-                <?=$locale->msg('it is without VAT')?> <?=round($vat * 100)?>% (<a
-                        href="<?=$locale->route('/?vat') . ($resolution == 60 ? '&res=60' : '')?>"><?=$locale->msg('show with VAT')?></a>)
+                <?= $locale->msg('it is without VAT')?> <?= round($vat * 100)?>% (<a
+                        href="<?= $locale->route('/?vat').($resolution == 60 ? '&res=60' : '')?>"><?= $locale->msg('show with VAT')?></a>)
             <?php } ?>
             <br/>
             <?php if ($resolution == 15) { ?>
-                <?=$locale->msg('Resolution')?>: <strong>15min</strong> (<a
-                        href="<?=$locale->route('/' . ($with_vat ? '?vat&res=60' : '?res=60'))?>"><?=$locale->msg('show 1h')?></a>)
+                <?= $locale->msg('Resolution')?>: <strong>15min</strong> (<a
+                        href="<?= $locale->route('/'.($with_vat ? '?vat&res=60' : '?res=60'))?>"><?= $locale->msg('show 1h')?></a>)
             <?php } else { ?>
-                <?=$locale->msg('Resolution')?>: <strong>1h</strong> (<a
-                        href="<?=$locale->route('/' . ($with_vat ? '?vat' : ''))?>"><?=$locale->msg('show 15min')?></a>)
+                <?= $locale->msg('Resolution')?>: <strong>1h</strong> (<a
+                        href="<?= $locale->route('/'.($with_vat ? '?vat' : ''))?>"><?= $locale->msg('show 15min')?></a>)
             <?php } ?>
         </p>
     </header>
 
     <?php if (date('Y-m-d') < '2025-10-08') { ?>
         <div class="notice">
-            <p><?=$locale->msg('15min notice')?></p>
+            <p><?= $locale->msg('15min notice')?></p>
         </div>
     <?php } ?>
 
 
-    <?php if (!str_starts_with($_SERVER['HTTP_HOST'] ?? '', 'localhost') && $locale->get('code') === 'LV' && !isset($_GET['no-ads'])) { ?>
+    <?php if (! str_starts_with($_SERVER['HTTP_HOST'] ?? '', 'localhost') && $locale->get('code') === 'LV' && ! isset($_GET['no-ads'])) { ?>
         <script async
                 src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4590024878280519"
                 crossorigin="anonymous"></script>
@@ -486,14 +464,14 @@ asort($hours);
         <thead>
         <tr>
             <th></th>
-            <th colspan="<?=$quarters_per_hour?>"><?=$locale->msg('Šodien')?>
-                <span class="help"><?=$locale->formatDate($current_time, 'd. MMM')?></span><br/>
-                <small><?=$locale->msg('Vidēji')?> <span><?=$today_avg ? format($today_avg) : '—'?></span></small>
+            <th colspan="<?= $quarters_per_hour?>"><?= $locale->msg('Šodien')?>
+                <span class="help"><?= $locale->formatDate($current_time, 'd. MMM')?></span><br/>
+                <small><?= $locale->msg('Vidēji')?> <span><?= $today_avg ? format($today_avg) : '—'?></span></small>
             </th>
-            <th colspan="<?=$quarters_per_hour?>"><?=$locale->msg('Rīt')?>
+            <th colspan="<?= $quarters_per_hour?>"><?= $locale->msg('Rīt')?>
                 <span
-                        class="help"><?=$locale->formatDate($current_time->modify('+1 day'), 'd. MMM')?></span><br/>
-                <small><?=$locale->msg('Vidēji')?> <span><?=$tomorrow_avg ? format($tomorrow_avg) : '—'?></span></small>
+                        class="help"><?= $locale->formatDate($current_time->modify('+1 day'), 'd. MMM')?></span><br/>
+                <small><?= $locale->msg('Vidēji')?> <span><?= $tomorrow_avg ? format($tomorrow_avg) : '—'?></span></small>
             </th>
         </tr>
         <tr>
@@ -517,28 +495,129 @@ asort($hours);
         <?php
         // Build legend and values arrays first
         $legend = [];
-        $values['today'] = [];
-        $values['tomorrow'] = [];
-        for ($hour = 0; $hour < 24; $hour++) {
-            for ($q = 0; $q < $quarters_per_hour; $q++) {
-                if ($resolution == 15) {
-                    $legend[] = sprintf('%02d:%02d', $hour, $q * 15);
-                } else {
-                    $legend[] = sprintf('%02d:00', $hour);
-                }
-                $values['today'][] = $today[$hour][$q] ?? 0;
-                $values['tomorrow'][] = $tomorrow[$hour][$q] ?? 0;
-            }
+$values['today'] = [];
+$values['tomorrow'] = [];
+for ($hour = 0; $hour < 24; $hour++) {
+    for ($q = 0; $q < $quarters_per_hour; $q++) {
+        if ($resolution == 15) {
+            $legend[] = sprintf('%02d:%02d', $hour, $q * 15);
+        } else {
+            $legend[] = sprintf('%02d:00', $hour);
         }
-        ?>
+        $values['today'][] = $today[$hour][$q] ?? 0;
+        $values['tomorrow'][] = $tomorrow[$hour][$q] ?? 0;
+    }
+}
+?>
         <?php for ($hour = 0; $hour < 24; $hour++) {
-            $hour_label = sprintf('%02d', $hour) . '-' . sprintf('%02d', ($hour + 1) % 24);
+            $hour_label = sprintf('%02d', $hour).'-'.sprintf('%02d', ($hour + 1) % 24);
             ?>
-            <tr data-hours="<?=$hour?>">
-                <th><?=$hour_label?></th>
+            <tr data-hours="<?= $hour?>">
+                <th><?= $hour_label?></th>
                 <?php
                 // Process quarters for today with colspan logic
                 $q = 0;
+            while ($q < $quarters_per_hour) {
+                $value = $today[$hour][$q] ?? null;
+
+                // Count consecutive quarters with same value
+                $colspan = 1;
+                $next_q = $q + 1;
+                while ($next_q < $quarters_per_hour) {
+                    $next_value = $today[$hour][$next_q] ?? null;
+                    if ($value !== null && $next_value !== null && $value === $next_value) {
+                        $colspan++;
+                        $next_q++;
+                    } else {
+                        break;
+                    }
+                }
+                ?>
+                    <td class="price today quarter-<?= $q?>" data-quarter="<?= $q?>"
+                        <?php if ($colspan > 1) { ?>colspan="<?= $colspan?>"<?php } ?>
+                        style="background-color: <?= getColorPercentage($value ?? -9999, $today_min, $today_max)?>">
+                        <?= isset($value) ? format($value) : '-'?>
+                    </td>
+                    <?php
+                $q = $next_q;
+            }
+            ?>
+                <?php
+            // Process quarters for tomorrow with colspan logic
+            $q = 0;
+            while ($q < $quarters_per_hour) {
+                $value = $tomorrow[$hour][$q] ?? null;
+
+                // Count consecutive quarters with same value
+                $colspan = 1;
+                $next_q = $q + 1;
+                while ($next_q < $quarters_per_hour) {
+                    $next_value = $tomorrow[$hour][$next_q] ?? null;
+                    if ($value !== null && $next_value !== null && $value === $next_value) {
+                        $colspan++;
+                        $next_q++;
+                    } else {
+                        break;
+                    }
+                }
+                ?>
+                    <td class="price tomorrow quarter-<?= $q?>" data-quarter="<?= $q?>"
+                        <?php if ($colspan > 1) { ?>colspan="<?= $colspan?>"<?php } ?>
+                        style="<?= isset($value) ? '' : 'text-align: center; '?>background-color: <?= getColorPercentage($value ?? -9999, $tomorrow_min, $tomorrow_max)?>">
+                        <?= isset($value) ? format($value) : '-'?>
+                    </td>
+                    <?php
+                $q = $next_q;
+            }
+            ?>
+            </tr>
+        <?php } ?>
+
+        <?php
+        // Add final point for chart continuity
+        $legend[] = '00:00';
+$values['today'][] = $tomorrow[0][0] ?? 0;
+?>
+        </tbody>
+    </table>
+
+    <!-- Mobile tables -->
+    <div class="mobile-tables">
+        <?php if ($resolution == 15) { ?>
+            <div id="mobile-selector">
+                <a href="#" data-day="today" data-current><?= $locale->msg('Šodien')?></a>
+                <a href="#" data-day="tomorrow"><?= $locale->msg('Rīt')?></a>
+            </div>
+        <?php } ?>
+        <table class="mobile-table" data-day="today">
+            <thead>
+            <tr>
+                <th colspan="<?= $quarters_per_hour + 1?>"><?= $locale->msg('Šodien')?>
+                    <span class="help"><?= $locale->formatDate($current_time, 'd. MMM')?></span><br/>
+                    <small><?= $locale->msg('Vidēji')?> <span><?= $today_avg ? format($today_avg) : '—'?></span></small>
+                </th>
+            </tr>
+            <tr>
+                <th>🕑</th>
+                <?php if ($resolution == 15) { ?>
+                    <th>:00</th>
+                    <th>:15</th>
+                    <th>:30</th>
+                    <th>:45</th>
+                <?php } else { ?>
+                    <th>:00</th>
+                <?php } ?>
+            </tr>
+            </thead>
+            <tbody>
+            <?php for ($hour = 0; $hour < 24; $hour++) {
+                $hour_label = sprintf('%02d', $hour).'-'.sprintf('%02d', ($hour + 1) % 24);
+                ?>
+                <tr data-hours="<?= $hour?>" data-day="today">
+                    <th><?= $hour_label?></th>
+                    <?php
+                    // Process quarters for today with colspan logic
+                    $q = 0;
                 while ($q < $quarters_per_hour) {
                     $value = $today[$hour][$q] ?? null;
 
@@ -555,18 +634,50 @@ asort($hours);
                         }
                     }
                     ?>
-                    <td class="price today quarter-<?=$q?>" data-quarter="<?=$q?>"
-                        <?php if ($colspan > 1) { ?>colspan="<?=$colspan?>"<?php } ?>
-                        style="background-color: <?=getColorPercentage($value ?? -9999, $today_min, $today_max)?>">
-                        <?=isset($value) ? format($value) : '-'?>
-                    </td>
-                    <?php
+                        <td class="price quarter-<?= $q?>" data-quarter="<?= $q?>"
+                            <?php if ($colspan > 1) { ?>colspan="<?= $colspan?>"<?php } ?>
+                            style="background-color: <?= getColorPercentage($value ?? -9999, $today_min, $today_max)?>">
+                            <?= isset($value) ? format($value) : '-'?>
+                        </td>
+                        <?php
                     $q = $next_q;
                 }
                 ?>
-                <?php
-                // Process quarters for tomorrow with colspan logic
-                $q = 0;
+                </tr>
+            <?php } ?>
+            </tbody>
+        </table>
+
+        <table class="mobile-table<?= $resolution == 15 ? ' hidden' : ''?>" data-day="tomorrow">
+            <thead>
+            <tr>
+                <th colspan="<?= $quarters_per_hour + 1?>"><?= $locale->msg('Rīt')?>
+                    <span class="help"><?= $locale->formatDate($current_time->modify('+1 day'), 'd. MMM')?></span><br/>
+                    <small><?= $locale->msg('Vidēji')?>
+                        <span><?= $tomorrow_avg ? format($tomorrow_avg) : '—'?></span></small>
+                </th>
+            </tr>
+            <tr>
+                <th>🕑</th>
+                <?php if ($resolution == 15) { ?>
+                    <th>:00</th>
+                    <th>:15</th>
+                    <th>:30</th>
+                    <th>:45</th>
+                <?php } else { ?>
+                    <th>:00</th>
+                <?php } ?>
+            </tr>
+            </thead>
+            <tbody>
+            <?php for ($hour = 0; $hour < 24; $hour++) {
+                $hour_label = sprintf('%02d', $hour).'-'.sprintf('%02d', ($hour + 1) % 24);
+                ?>
+                <tr data-hours="<?= $hour?>" data-day="tomorrow">
+                    <th><?= $hour_label?></th>
+                    <?php
+                    // Process quarters for tomorrow with colspan logic
+                    $q = 0;
                 while ($q < $quarters_per_hour) {
                     $value = $tomorrow[$hour][$q] ?? null;
 
@@ -583,148 +694,15 @@ asort($hours);
                         }
                     }
                     ?>
-                    <td class="price tomorrow quarter-<?=$q?>" data-quarter="<?=$q?>"
-                        <?php if ($colspan > 1) { ?>colspan="<?=$colspan?>"<?php } ?>
-                        style="<?=isset($value) ? '' : 'text-align: center; '?>background-color: <?=getColorPercentage($value ?? -9999, $tomorrow_min, $tomorrow_max)?>">
-                        <?=isset($value) ? format($value) : '-'?>
-                    </td>
-                    <?php
+                        <td class="price quarter-<?= $q?>" data-quarter="<?= $q?>"
+                            <?php if ($colspan > 1) { ?>colspan="<?= $colspan?>"<?php } ?>
+                            style="<?= isset($value) ? '' : 'text-align: center; '?>background-color: <?= getColorPercentage($value ?? -9999, $tomorrow_min, $tomorrow_max)?>">
+                            <?= isset($value) ? format($value) : '-'?>
+                        </td>
+                        <?php
                     $q = $next_q;
                 }
                 ?>
-            </tr>
-        <?php } ?>
-
-        <?php
-        // Add final point for chart continuity
-        $legend[] = '00:00';
-        $values['today'][] = $tomorrow[0][0] ?? 0;
-        ?>
-        </tbody>
-    </table>
-
-    <!-- Mobile tables -->
-    <div class="mobile-tables">
-        <?php if ($resolution == 15) { ?>
-            <div id="mobile-selector">
-                <a href="#" data-day="today" data-current><?=$locale->msg('Šodien')?></a>
-                <a href="#" data-day="tomorrow"><?=$locale->msg('Rīt')?></a>
-            </div>
-        <?php } ?>
-        <table class="mobile-table" data-day="today">
-            <thead>
-            <tr>
-                <th colspan="<?=$quarters_per_hour + 1?>"><?=$locale->msg('Šodien')?>
-                    <span class="help"><?=$locale->formatDate($current_time, 'd. MMM')?></span><br/>
-                    <small><?=$locale->msg('Vidēji')?> <span><?=$today_avg ? format($today_avg) : '—'?></span></small>
-                </th>
-            </tr>
-            <tr>
-                <th>🕑</th>
-                <?php if ($resolution == 15) { ?>
-                    <th>:00</th>
-                    <th>:15</th>
-                    <th>:30</th>
-                    <th>:45</th>
-                <?php } else { ?>
-                    <th>:00</th>
-                <?php } ?>
-            </tr>
-            </thead>
-            <tbody>
-            <?php for ($hour = 0; $hour < 24; $hour++) {
-                $hour_label = sprintf('%02d', $hour) . '-' . sprintf('%02d', ($hour + 1) % 24);
-                ?>
-                <tr data-hours="<?=$hour?>" data-day="today">
-                    <th><?=$hour_label?></th>
-                    <?php
-                    // Process quarters for today with colspan logic
-                    $q = 0;
-                    while ($q < $quarters_per_hour) {
-                        $value = $today[$hour][$q] ?? null;
-
-                        // Count consecutive quarters with same value
-                        $colspan = 1;
-                        $next_q = $q + 1;
-                        while ($next_q < $quarters_per_hour) {
-                            $next_value = $today[$hour][$next_q] ?? null;
-                            if ($value !== null && $next_value !== null && $value === $next_value) {
-                                $colspan++;
-                                $next_q++;
-                            } else {
-                                break;
-                            }
-                        }
-                        ?>
-                        <td class="price quarter-<?=$q?>" data-quarter="<?=$q?>"
-                            <?php if ($colspan > 1) { ?>colspan="<?=$colspan?>"<?php } ?>
-                            style="background-color: <?=getColorPercentage($value ?? -9999, $today_min, $today_max)?>">
-                            <?=isset($value) ? format($value) : '-'?>
-                        </td>
-                        <?php
-                        $q = $next_q;
-                    }
-                    ?>
-                </tr>
-            <?php } ?>
-            </tbody>
-        </table>
-
-        <table class="mobile-table<?=$resolution == 15 ? ' hidden' : ''?>" data-day="tomorrow">
-            <thead>
-            <tr>
-                <th colspan="<?=$quarters_per_hour + 1?>"><?=$locale->msg('Rīt')?>
-                    <span class="help"><?=$locale->formatDate($current_time->modify('+1 day'), 'd. MMM')?></span><br/>
-                    <small><?=$locale->msg('Vidēji')?>
-                        <span><?=$tomorrow_avg ? format($tomorrow_avg) : '—'?></span></small>
-                </th>
-            </tr>
-            <tr>
-                <th>🕑</th>
-                <?php if ($resolution == 15) { ?>
-                    <th>:00</th>
-                    <th>:15</th>
-                    <th>:30</th>
-                    <th>:45</th>
-                <?php } else { ?>
-                    <th>:00</th>
-                <?php } ?>
-            </tr>
-            </thead>
-            <tbody>
-            <?php for ($hour = 0; $hour < 24; $hour++) {
-                $hour_label = sprintf('%02d', $hour) . '-' . sprintf('%02d', ($hour + 1) % 24);
-                ?>
-                <tr data-hours="<?=$hour?>" data-day="tomorrow">
-                    <th><?=$hour_label?></th>
-                    <?php
-                    // Process quarters for tomorrow with colspan logic
-                    $q = 0;
-                    while ($q < $quarters_per_hour) {
-                        $value = $tomorrow[$hour][$q] ?? null;
-
-                        // Count consecutive quarters with same value
-                        $colspan = 1;
-                        $next_q = $q + 1;
-                        while ($next_q < $quarters_per_hour) {
-                            $next_value = $tomorrow[$hour][$next_q] ?? null;
-                            if ($value !== null && $next_value !== null && $value === $next_value) {
-                                $colspan++;
-                                $next_q++;
-                            } else {
-                                break;
-                            }
-                        }
-                        ?>
-                        <td class="price quarter-<?=$q?>" data-quarter="<?=$q?>"
-                            <?php if ($colspan > 1) { ?>colspan="<?=$colspan?>"<?php } ?>
-                            style="<?=isset($value) ? '' : 'text-align: center; '?>background-color: <?=getColorPercentage($value ?? -9999, $tomorrow_min, $tomorrow_max)?>">
-                            <?=isset($value) ? format($value) : '-'?>
-                        </td>
-                        <?php
-                        $q = $next_q;
-                    }
-                    ?>
                 </tr>
             <?php } ?>
             </tbody>
@@ -732,15 +710,15 @@ asort($hours);
     </div>
 
     <p id="legend">
-        <span class="legend bad"><?=$locale->msg('Izvairāmies tērēt elektrību')?></span> <span
-                class="legend good"><?=$locale->msg('Krājam burciņā')?></span>
+        <span class="legend bad"><?= $locale->msg('Izvairāmies tērēt elektrību')?></span> <span
+                class="legend good"><?= $locale->msg('Krājam burciņā')?></span>
     </p>
 
     <div id="chart-selector">
-        <h2><?=$locale->msg('Primitīvs grafiks')?></h2>
+        <h2><?= $locale->msg('Primitīvs grafiks')?></h2>
         <p>
-            <a href="#" data-day="today" data-current><?=$locale->msg('Šodien')?></a>
-            <a href="#" data-day="tomorrow"><?=$locale->msg('Rīt')?></a>
+            <a href="#" data-day="today" data-current><?= $locale->msg('Šodien')?></a>
+            <a href="#" data-day="tomorrow"><?= $locale->msg('Rīt')?></a>
         </p>
     </div>
 
@@ -853,7 +831,7 @@ asort($hours);
                         }
                     },
                     markLine: {
-                        data: [{type: 'average', name: '<?=$locale->msg('Vidēji')?>'}],
+                        data: [{type: 'average', name: '<?= $locale->msg('Vidēji')?>'}],
                         symbol: 'none',
                         label: {
                             show: true,
@@ -878,22 +856,22 @@ asort($hours);
     <footer>
         <p>
             <?php if ($with_vat) { ?>
-                <?=$locale->msg('Price shown includes VAT')?>
-                (<a href="<?=$locale->route('/')?>"><?=$locale->msg('show without VAT')?></a>).
+                <?= $locale->msg('Price shown includes VAT')?>
+                (<a href="<?= $locale->route('/')?>"><?= $locale->msg('show without VAT')?></a>).
             <?php } else { ?>
-                <?=$locale->msg('Price shown is without VAT')?>
-                (<a href="<?=$locale->route('/?vat')?>"><?=$locale->msg('show with VAT')?></a>).
+                <?= $locale->msg('Price shown is without VAT')?>
+                (<a href="<?= $locale->route('/?vat')?>"><?= $locale->msg('show with VAT')?></a>).
             <?php } ?>
 
-            <?=$locale->msgf(
-                    'disclaimer',
-                    $locale->msg('normal CSV') .
-                    ' (<a href="/nordpool-' . $locale->get('code_lc') . '.csv">' . $locale->msg("15min data") . '</a>, ' .
-                    '<a href="/nordpool-' . $locale->get('code_lc') . '-1h.csv">' . $locale->msg('1h average') . '</a>)',
-                    $locale->msg('Excel CSV') .
-                    ' (<a href="/nordpool-' . $locale->get('code_lc') . '-excel.csv">' . $locale->msg("15min data") . '</a>, ' .
-                    '<a href="/nordpool-' . $locale->get('code_lc') . '-1h-excel.csv">' . $locale->msg('1h average') . '</a>)',
-                    '<a href="https://nordpool.didnt.work/'. strtolower($country) . '?rss">rss</a>'
+            <?= $locale->msgf(
+                'disclaimer',
+                $locale->msg('normal CSV').
+                ' (<a href="/nordpool-'.$locale->get('code_lc').'.csv">'.$locale->msg('15min data').'</a>, '.
+                '<a href="/nordpool-'.$locale->get('code_lc').'-1h.csv">'.$locale->msg('1h average').'</a>)',
+                $locale->msg('Excel CSV').
+                ' (<a href="/nordpool-'.$locale->get('code_lc').'-excel.csv">'.$locale->msg('15min data').'</a>, '.
+                '<a href="/nordpool-'.$locale->get('code_lc').'-1h-excel.csv">'.$locale->msg('1h average').'</a>)',
+                '<a href="https://nordpool.didnt.work/'.strtolower($country).'?rss">rss</a>'
             )?>
     </footer>
 

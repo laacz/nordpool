@@ -1,18 +1,5 @@
 <?php
 
-/*
-|--------------------------------------------------------------------------
-| Test Case
-|--------------------------------------------------------------------------
-|
-| The closure you provide to your test functions is always bound to a specific PHPUnit test
-| case class. By default, that class is "PHPUnit\Framework\TestCase". Of course, you may
-| need to change it using the "pest()" function to bind a different classes or traits.
-|
-*/
-
-// Simple setup - no custom test case needed for now
-
 // Autoload src classes for tests
 spl_autoload_register(function ($class) {
     $file = __DIR__.'/../src/'.$class.'.php';
@@ -20,3 +7,16 @@ spl_autoload_register(function ($class) {
         require_once $file;
     }
 });
+
+function create_tables(PDO $pdo): void
+{
+    $pdo->exec('CREATE TABLE price_indices (
+        country TEXT,
+        ts_start TEXT,
+        ts_end TEXT,
+        value REAL,
+        resolution_minutes INTEGER,
+        created_at timestamp DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(country, ts_start, ts_end, resolution_minutes)
+    )');
+}

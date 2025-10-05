@@ -9,5 +9,10 @@
     "require-dev": {
         "pestphp/pest": "^4.1",
         "laravel/pint": "^1.25"
+    },
+    "require": {
+        "ext-intl": "*",
+        "ext-pdo": "*",
+        "ext-sqlite3": "*"
     }
 }

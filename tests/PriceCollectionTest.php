@@ -1,4 +1,4 @@
-<?php
+<?php /** @noinspection PhpUnhandledExceptionInspection */
 
 test('transforms prices into 15min grid', function () {
     $prices = [
@@ -9,16 +9,16 @@ test('transforms prices into 15min grid', function () {
     ];
 
     $collection = new PriceCollection($prices);
-    $grid = $collection->toGrid(new DateTimeZone('UTC'), false, 1.0);
+    $grid = $collection->toGrid(new DateTimeZone('UTC'), false);
 
-    expect($grid)->toHaveKey('2025-10-04');
-    expect($grid['2025-10-04'])->toHaveKey(10);
-    expect($grid['2025-10-04'][10])->toBe([
-        0 => 0.123,
-        1 => 0.145,
-        2 => 0.167,
-        3 => 0.189,
-    ]);
+    expect($grid)->toHaveKey('2025-10-04')
+        ->and($grid['2025-10-04'])->toHaveKey(10)
+        ->and($grid['2025-10-04'][10])->toBe([
+            0 => 0.123,
+            1 => 0.145,
+            2 => 0.167,
+            3 => 0.189,
+        ]);
 });
 
 test('transforms prices into hourly grid by averaging quarters', function () {
@@ -30,7 +30,7 @@ test('transforms prices into hourly grid by averaging quarters', function () {
     ];
 
     $collection = new PriceCollection($prices);
-    $grid = $collection->toGrid(new DateTimeZone('UTC'), true, 1.0);
+    $grid = $collection->toGrid(new DateTimeZone('UTC'), true);
 
     expect($grid['2025-10-04'][10])->toBe([
         0 => 0.13, // (0.1 + 0.12 + 0.14 + 0.16) / 4 = 0.13
@@ -55,16 +55,16 @@ test('converts timezone correctly', function () {
 
     $collection = new PriceCollection($prices);
     $rigaTz = new DateTimeZone('Europe/Riga');
-    $grid = $collection->toGrid($rigaTz, false, 1.0);
+    $grid = $collection->toGrid($rigaTz, false);
 
     // Berlin 10:00 = Riga 11:00 (during standard time)
-    expect($grid['2025-10-04'])->toHaveKey(11);
-    expect($grid['2025-10-04'][11][0])->toBe(0.1);
+    expect($grid['2025-10-04'])->toHaveKey(11)
+        ->and($grid['2025-10-04'][11][0])->toBe(0.1);
 });
 
 test('handles empty price array', function () {
     $collection = new PriceCollection([]);
-    $grid = $collection->toGrid(new DateTimeZone('UTC'), false, 1.0);
+    $grid = $collection->toGrid(new DateTimeZone('UTC'), false);
 
     expect($grid)->toBe([]);
 });
@@ -77,7 +77,7 @@ test('handles partial hour data in hourly mode', function () {
     ];
 
     $collection = new PriceCollection($prices);
-    $grid = $collection->toGrid(new DateTimeZone('UTC'), true, 1.0);
+    $grid = $collection->toGrid(new DateTimeZone('UTC'), true);
 
     // Should not average if less than 4 quarters
     expect($grid['2025-10-04'][10])->toBe([
@@ -92,7 +92,7 @@ test('rounds values to 4 decimal places', function () {
     ];
 
     $collection = new PriceCollection($prices);
-    $grid = $collection->toGrid(new DateTimeZone('UTC'), false, 1.0);
+    $grid = $collection->toGrid(new DateTimeZone('UTC'), false);
 
     expect($grid['2025-10-04'][10][0])->toBe(0.1235);
 });
@@ -104,11 +104,11 @@ test('handles multiple days', function () {
     ];
 
     $collection = new PriceCollection($prices);
-    $grid = $collection->toGrid(new DateTimeZone('UTC'), false, 1.0);
+    $grid = $collection->toGrid(new DateTimeZone('UTC'), false);
 
-    expect($grid)->toHaveKeys(['2025-10-04', '2025-10-05']);
-    expect($grid['2025-10-04'][10][0])->toBe(0.1);
-    expect($grid['2025-10-05'][10][0])->toBe(0.2);
+    expect($grid)->toHaveKeys(['2025-10-04', '2025-10-05'])
+        ->and($grid['2025-10-04'][10][0])->toBe(0.1)
+        ->and($grid['2025-10-05'][10][0])->toBe(0.2);
 });
 
 test('hourly mode preserves rounding precision', function () {
@@ -120,7 +120,7 @@ test('hourly mode preserves rounding precision', function () {
     ];
 
     $collection = new PriceCollection($prices);
-    $grid = $collection->toGrid(new DateTimeZone('UTC'), true, 1.0);
+    $grid = $collection->toGrid(new DateTimeZone('UTC'), true);
 
     // Average = 0.11125, should round to 0.1113
     expect($grid['2025-10-04'][10][0])->toBe(0.1113);

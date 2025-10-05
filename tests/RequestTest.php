@@ -17,8 +17,8 @@ test('parses URI path', function () {
 
 test('checks parameter existence', function () {
     $request = new Request(['vat' => ''], []);
-    expect($request->has('vat'))->toBeTrue();
-    expect($request->has('missing'))->toBeFalse();
+    expect($request->has('vat'))->toBeTrue()
+        ->and($request->has('missing'))->toBeFalse();
 });
 
 test('gets server parameter', function () {
@@ -53,14 +53,14 @@ test('handles root path', function () {
 
 test('handles resolution parameter as string', function () {
     $request = new Request(['res' => '60'], []);
-    expect($request->get('res'))->toBe('60');
-    expect($request->get('res') == '60')->toBeTrue();
+    expect($request->get('res'))->toBe('60')
+        ->and($request->get('res') == '60')->toBeTrue();
 });
 
 test('handles multiple query parameters', function () {
     $request = new Request(['vat' => '', 'res' => '60', 'purge' => ''], []);
-    expect($request->has('vat'))->toBeTrue();
-    expect($request->has('res'))->toBeTrue();
-    expect($request->has('purge'))->toBeTrue();
-    expect($request->get('res'))->toBe('60');
+    expect($request->has('vat'))->toBeTrue()
+        ->and($request->has('res'))->toBeTrue()
+        ->and($request->has('purge'))->toBeTrue()
+        ->and($request->get('res'))->toBe('60');
 });

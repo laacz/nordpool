@@ -53,8 +53,8 @@ test('provides legend colors', function () {
     $helper = new ViewHelper();
     $colors = $helper->getLegendColors();
 
-    expect($colors)->toBeArray();
-    expect($colors)->toHaveCount(3);
-    expect($colors[0]['pct'])->toBe(0.0);
-    expect($colors[2]['pct'])->toBe(1.0);
+    expect($colors)->toBeArray()
+        ->and($colors)->toHaveCount(3)
+        ->and($colors[0]['pct'])->toBe(0.0)
+        ->and($colors[2]['pct'])->toBe(1.0);
 });

@@ -1,16 +1,15 @@
 <?php
 
-class PriceRepository
+readonly class PriceRepository
 {
-    private DateTimeZone $berlinTz;
-
     public function __construct(
-        private PDO $db,
+        private PDO          $db,
         private DateTimeZone $tz = new DateTimeZone('UTC'),
     ) {}
 
     /**
      * @return Price[]
+     * @throws \DateMalformedStringException
      */
     public function getPrices(
         DateTimeImmutable $startDate,
@@ -25,7 +24,7 @@ class PriceRepository
               AND ts_start >= :start
               AND ts_start < :end
               AND resolution_minutes = :resolution
-            ORDER BY ts_start ASC
+            ORDER BY ts_start
         ';
 
         $stmt = $this->db->prepare($sql);

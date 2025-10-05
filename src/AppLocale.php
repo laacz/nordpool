@@ -26,10 +26,6 @@ class AppLocale
     /**
      * Format a date/time string according to the specified format and locale in the $country['locale'].
      * Format string is based on ICU DateTime format.
-     *
-     * @param mixed $time The date/time to format. Can be a DateTime object, timestamp, or string.
-     * @param string $format The format string. Default is 'd.m.Y H:i'.
-     * @return string The formatted date/time string.
      */
     public function formatDate(mixed $time, string $format = 'd.m.Y H:i'): string|false
     {

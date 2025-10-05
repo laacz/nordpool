@@ -9,8 +9,8 @@ test('formats dates according to locale', function () {
     $date = new DateTimeImmutable('2025-10-04 15:30:00');
     $formatted = $locale->formatDate($date, 'd. MMM');
 
-    expect($formatted)->toBeString();
-    expect($formatted)->toContain('4');
+    expect($formatted)->toBeString()
+        ->and($formatted)->toContain('4');
 });
 
 test('translates messages', function () {
@@ -43,15 +43,15 @@ test('translates to Estonian', function () {
 test('generates correct routes for default language', function () {
     $lv = new AppLocale(Config::getCountries('LV'), Config::getTranslations());
 
-    expect($lv->route('/'))->toBe('/');
-    expect($lv->route('/?vat'))->toBe('/?vat');
+    expect($lv->route('/'))->toBe('/')
+        ->and($lv->route('/?vat'))->toBe('/?vat');
 });
 
 test('generates correct routes for non-default language', function () {
     $lt = new AppLocale(Config::getCountries('LT'), Config::getTranslations());
 
-    expect($lt->route('/'))->toBe('/lt/');
-    expect($lt->route('/?vat'))->toBe('/lt/?vat');
+    expect($lt->route('/'))->toBe('/lt/')
+        ->and($lt->route('/?vat'))->toBe('/lt/?vat');
 });
 
 test('gets config values', function () {
@@ -60,9 +60,9 @@ test('gets config values', function () {
         Config::getTranslations()
     );
 
-    expect($locale->get('code'))->toBe('LV');
-    expect($locale->get('vat'))->toBe(0.21);
-    expect($locale->get('missing', 'default'))->toBe('default');
+    expect($locale->get('code'))->toBe('LV')
+        ->and($locale->get('vat'))->toBe(0.21)
+        ->and($locale->get('missing', 'default'))->toBe('default');
 });
 
 test('formats messages with arguments', function () {
@@ -74,7 +74,7 @@ test('formats messages with arguments', function () {
     // Using disclaimer which has %s placeholders
     $result = $locale->msgf('disclaimer', 'csv1', 'csv2', 'rss');
 
-    expect($result)->toContain('csv1');
-    expect($result)->toContain('csv2');
-    expect($result)->toContain('rss');
+    expect($result)->toContain('csv1')
+        ->and($result)->toContain('csv2')
+        ->and($result)->toContain('rss');
 });

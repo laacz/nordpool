@@ -4,992 +4,179 @@ if (!$ret) {
     return false;
 }
 
-$countryConfig = getCountryConfig();
-$translations = getTranslations();
+try {
+    $request = new Request;
+    $router = new Router();
+    $view = new View();
 
-$tz_riga = new DateTimeZone('Europe/Riga');
-$tz_cet = new DateTimeZone('Europe/Berlin');
+    // RSS routes
+    $router->get('rss', function (Request $request, array $params) use ($view) {
+        handleRss($request, $params, $view);
+    });
 
-$path = trim($_SERVER['REQUEST_URI'] ?? '', '/');
-$path = explode('?', $path)[0];
-$parts = explode('/', $path);
-$country = strtoupper($parts[0] ?? 'lv');
-if (!isset($countryConfig[$country])) {
-    $country = 'LV';
+    $router->get('{country}/rss', function (Request $request, array $params) use ($view) {
+        handleRss($request, $params, $view);
+    });
+
+    // Main routes with redirect for old ?rss parameter
+    $router->get('', function (Request $request, array $params) use ($view) {
+        if ($request->has('rss')) {
+            header('Location: /rss', true, 301);
+            exit;
+        }
+        handleIndex($request, $params, $view);
+    });
+
+    $router->get('{country}', function (Request $request, array $params) use ($view) {
+        if ($request->has('rss')) {
+            $country = strtolower($params['country'] ?? 'lv');
+            header("Location: /$country/rss", true, 301);
+            exit;
+        }
+        handleIndex($request, $params, $view);
+    });
+
+    $router->dispatch($request);
+} catch (Exception) {
+    abort();
 }
 
-$current_time = new DateTimeImmutable('now', $tz_riga);
-if (isset($_GET['now'])) {
-    $current_time = new DateTimeImmutable($_GET['now'], $tz_riga);
-}
-$current_time_cet = $current_time->setTimezone($tz_cet);
-$sql_time = $current_time_cet->format('Y-m-d H:i:s');
-$sql_time_tomorrow = new DateTimeImmutable(date('Y-m-d'), $tz_riga)->modify('+1 day')->setTimeZone($tz_cet)->format('Y-m-d H:00:00');
-$resolution = isset($_GET['res']) && $_GET['res'] == '60' ? 60 : 15;
+/**
+ * @throws \Exception
+ */
+function handleRss(Request $request, array $params, View $view): void
+{
+    $countryConfig = Config::getCountries();
+    $translations = Config::getTranslations();
 
-$locale = new AppLocale($countryConfig[$country], $translations);
-/** @var float $vat */
-$vat = $locale->get('vat');
+    $country = strtoupper($params['country'] ?? 'lv');
+    if (!isset($countryConfig[$country])) {
+        $country = 'LV';
+    }
 
-if (isset($_GET['rss'])) {
+    $locale = new AppLocale($countryConfig[$country], $translations);
+    $vat = (float)$locale->get('vat');
+
+    $tz_local = new DateTimeZone($locale->get('timezone'));
+    $local_tomorrow_start = new DateTimeImmutable('tomorrow', $tz_local);
+    $local_tomorrow_end = new DateTimeImmutable('today', $tz_local)->modify('+2 day');
+    $current_time = new DateTimeImmutable($request->get('now', 'now'), $tz_local);
 
     $DB = new PDO('sqlite:../nordpool.db');
-    $sql = "
-    SELECT ts_start, ts_end, value, resolution_minutes as resolution
-      FROM price_indices
-     WHERE country = " . $DB->quote(strtoupper($country)) . "
-       AND ts_start >= DATE(" . $DB->quote($sql_time_tomorrow) . ")
-    ORDER BY ts_start ASC
-    ";
-    // dd($sql);
+    $priceRepo = new PriceRepository($DB);
 
-    $data = $DB->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+    $data = $priceRepo->getPrices($local_tomorrow_start, $local_tomorrow_end, strtoupper($country));
+    if (count($data) < 5) {
+        $data = [];
+    }
 
     header('Content-Type: application/xml; charset=utf-8');
-    ?><feed xmlns="http://www.w3.org/2005/Atom">
-        <title type="text">Nordpool spot prices tomorrow (<?=substr($sql_time_tomorrow, 0, 10)?>) for <?=$country?></title>
-        <updated><?= $current_time->format('Y-m-d\TH:i:sP') ?></updated>
-        <link rel="alternate" type="text/html" href="https://nordpool.didnt.work"/>
-        <id>https://nordpool.didnt.work/feed</id>
-        <?php foreach ($data as $row) {
-            $ts_start = new DateTime($row['ts_start'], $tz_cet)->setTimezone(new DateTimeZone('Europe/Riga'));
-            $ts_end = new DateTime($row['ts_end'], $tz_cet)->setTimezone(new DateTimeZone('Europe/Riga'));
-            $value = (float)$row['value']/1000;
-            $resolution = $row['resolution'];
-        ?>
-        <entry>
-            <id><?=$country.'-'.$resolution.'-'.$ts_start->getTimestamp().'-'.$ts_end->getTimestamp()?></id>
-            <ts_start><?= $ts_start->format('Y-m-d\TH:i:sP') ?></ts_start>
-            <ts_end><?= $ts_end->format('Y-m-d\TH:i:sP') ?></ts_end>
-            <resolution><?= $resolution ?></resolution>
-            <price><?= htmlspecialchars($value) ?></price>
-            <price_vat><?= htmlspecialchars($value * (1+$vat)) ?></price_vat>
-        </entry>
-        <?php } ?>
-    </feed>
-    <?php
-
-    return;
+    $view->render('rss', [
+        'local_tomorrow_start' => $local_tomorrow_start,
+        'country' => $country,
+        'current_time' => $current_time,
+        'data' => $data,
+        'tz_local' => $tz_local,
+        'vat' => $vat,
+    ]);
 }
 
-$mtime = stat('../nordpool.db')['mtime'] ?? 0;
-$cmtime = Cache::get('last_db_mtime', 0);
+/**
+ * @throws Exception
+ */
+function handleIndex(Request $request, array $params, View $view): void
+{
+    $countryConfig = Config::getCountries();
+    $translations = Config::getTranslations();
 
-if ($cmtime === 0 || $mtime === 0 || (int)$mtime !== (int)$cmtime || isset($_GET['purge'])) {
-    Cache::clear();
-    Cache::set('last_db_mtime', $mtime);
-}
+    $country = strtoupper($params['country'] ?? 'lv');
+    if (!isset($countryConfig[$country])) {
+        $country = 'LV';
+    }
 
+    $resolution = $request->get('res') == '60' ? 60 : 15;
+    $locale = new AppLocale($countryConfig[$country], $translations);
+    $vat = (float)$locale->get('vat');
 
-$prices = [];
+    $tz_local = new DateTimeZone($locale->get('timezone'));
+    $local_start = new DateTimeImmutable('today', $tz_local);
+    $local_tomorrow_end = $local_start->modify('+2 day');
+    $current_time = new DateTimeImmutable($request->get('now', 'now'), $tz_local);
 
-$with_vat = isset($_GET['vat']);
-$quarters_per_hour = $resolution == 15 ? 4 : 1;
+    // Handle cache invalidation
+    $mtime = stat('../nordpool.db')['mtime'] ?? 0;
+    $cmtime = Cache::get('last_db_mtime', 0);
 
-$cache_key = 'prices_' . $locale->get('code') . '_' . $current_time->format('Ymd_Hi') . '_' . ($with_vat ? 'vat' : 'novat') . '_' . $resolution;
+    if ($cmtime === 0 || $mtime === 0 || (int)$mtime !== (int)$cmtime || $request->has('purge')) {
+        Cache::clear();
+        Cache::set('last_db_mtime', $mtime);
+    }
 
-$html = Cache::get($cache_key);
+    // Check cache
+    $with_vat = $request->has('vat');
+    $cache_key = 'prices_' . $locale->get('code') . '_' . $current_time->format('Ymd_Hi') . '_' . ($with_vat ? 'vat' : 'novat') . '_' . $resolution;
 
-if (!ob_start('ob_gzhandler')) ob_start();
-if ($html) {
-    header('X-Cache: HIT');
+    $html = Cache::get($cache_key);
+
+    if (!ob_start('ob_gzhandler')) {
+        ob_start();
+    }
+
+    if ($html) {
+        header('X-Cache: HIT');
+        echo $html;
+        exit;
+    }
+
+    // Fetch and process prices
+    $DB = new PDO('sqlite:../nordpool.db');
+    $priceRepo = new PriceRepository($DB);
+
+    $rows = $priceRepo->getPrices($local_start, $local_tomorrow_end, $locale->get('code'));
+
+    $collection = new PriceCollection($rows);
+    $prices = $collection->toGrid($tz_local, $resolution === 60, $with_vat ? 1 + $vat : 1);
+
+    $today = $prices[$current_time->format('Y-m-d')] ?? [];
+    $tomorrow = $prices[$current_time->modify('+1 day')->format('Y-m-d')] ?? [];
+
+    // Calculate statistics
+    $today_flat = $today ? array_merge(...array_map('array_values', $today)) : [];
+    $tomorrow_flat = $tomorrow ? array_merge(...array_map('array_values', $tomorrow)) : [];
+
+    $expected_count = $resolution === 60 ? 24 : 96;
+    $today_avg = count($today_flat) === $expected_count ? array_sum($today_flat) / count($today_flat) : null;
+    $tomorrow_avg = count($tomorrow_flat) === $expected_count ? array_sum($tomorrow_flat) / count($tomorrow_flat) : null;
+
+    $today_max = $today_flat ? max($today_flat) : 0;
+    $today_min = $today_flat ? min($today_flat) : 0;
+    $tomorrow_max = $tomorrow_flat ? max($tomorrow_flat) : 0;
+    $tomorrow_min = $tomorrow_flat ? min($tomorrow_flat) : 0;
+
+    $quarters_per_hour = $resolution == 15 ? 4 : 1;
+
+    // Render view
+    $view->render('index', [
+        'locale' => $locale,
+        'countryConfig' => $countryConfig,
+        'country' => $country,
+        'resolution' => $resolution,
+        'with_vat' => $with_vat,
+        'vat' => $vat,
+        'current_time' => $current_time,
+        'viewHelper' => new ViewHelper(),
+        'today' => $today,
+        'tomorrow' => $tomorrow,
+        'today_avg' => $today_avg,
+        'tomorrow_avg' => $tomorrow_avg,
+        'today_max' => $today_max,
+        'today_min' => $today_min,
+        'tomorrow_max' => $tomorrow_max,
+        'tomorrow_min' => $tomorrow_min,
+        'quarters_per_hour' => $quarters_per_hour,
+    ]);
+
+    $html = ob_get_clean();
     echo $html;
-    exit;
+    Cache::set($cache_key, $html);
 }
-
-
-$DB = new PDO('sqlite:../nordpool.db');
-
-$sql = "
-SELECT *
-  FROM price_indices
- WHERE country = " . $DB->quote($locale->get('code')) . "
-   AND ts_start >= DATE(" . $DB->quote($sql_time) . ", '-2 day')
-   AND ts_start <= DATE(" . $DB->quote($sql_time) . ", '+3 day')
-   AND resolution_minutes = " . $resolution . "
-ORDER BY ts_start DESC
-";
-
-// $sql = "
-// SELECT *
-//   FROM spot_prices
-//  WHERE country = " . $DB->quote($locale->get('code')) . "
-//    AND ts_start >= DATE(" . $DB->quote($sql_time) . ", '-2 day')
-//    AND ts_start <= DATE(" . $DB->quote($sql_time) . ", '+3 day')
-// ORDER BY ts_start DESC
-// ";
-
-
-foreach ($DB->query($sql) as $row) {
-    try {
-        $start = new DateTime($row['ts_start'], $tz_cet);
-        $end = new DateTime($row['ts_end'], $tz_cet);
-        $start->setTimeZone($tz_riga);
-        $end->setTimeZone($tz_riga);
-
-        $hour = (int)$start->format('H');
-        $minute = (int)$start->format('i');
-        $quarter = $resolution == 15 ? (int)($minute / 15) : 0; // 0, 1, 2, or 3 for 15min; always 0 for 60min
-
-        $prices[$start->format('Y-m-d')][$hour][$quarter] = round(($with_vat ? 1 + $vat : 1) * ((float)$row['value']) / 1000, 4);
-    } catch (Exception $e) {
-        continue;
-    }
-}
-
-$today = $prices[$current_time->format('Y-m-d')] ?? [];
-$tomorrow = $prices[$current_time->modify('+1 day')->format('Y-m-d')] ?? [];
-
-// Flatten today and tomorrow for calculations
-$today_flat = [];
-foreach ($today as $hour => $quarters) {
-    foreach ($quarters as $quarter => $value) {
-        $today_flat[] = $value;
-    }
-}
-
-$tomorrow_flat = [];
-foreach ($tomorrow as $hour => $quarters) {
-    foreach ($quarters as $quarter => $value) {
-        $tomorrow_flat[] = $value;
-    }
-}
-
-$expected_count = 24 * $quarters_per_hour; // 96 for 15min, 24 for 60min
-$today_avg = count($today_flat) === $expected_count ? array_sum($today_flat) / count($today_flat) : null;
-$tomorrow_avg = count($tomorrow_flat) === $expected_count ? array_sum($tomorrow_flat) / count($tomorrow_flat) : null;
-
-$today_max = count($today_flat) ? max($today_flat) : 0;
-$today_min = count($today_flat) ? min($today_flat) : 0;
-$tomorrow_max = count($tomorrow_flat) ? max($tomorrow_flat) : 0;
-$tomorrow_min = count($tomorrow_flat) ? min($tomorrow_flat) : 0;
-
-$now_hour = (int)$current_time->format('H');
-$now_quarter = (int)((int)$current_time->format('i') / 15);
-
-foreach ($prices as $k => $day) {
-    ksort($prices[$k]);
-}
-
-$hours = array_keys($today);
-asort($hours);
-
-?>
-<!doctype html>
-<html lang="<?=strtolower($locale->get('code_lc'))?>">
-
-<head>
-    <!-- Google tag (gtag.js) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-CRFT0MS7XN"></script>
-    <script>
-        window.dataLayer = window.dataLayer || [];
-
-        function gtag() {
-            dataLayer.push(arguments);
-        }
-
-        gtag('js', new Date());
-        gtag('config', 'G-CRFT0MS7XN');
-    </script>
-    <meta charset="UTF-8">
-    <meta name="viewport"
-          content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
-    <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <title><?=$locale->msg('title')?></title>
-    <link rel="alternate" type="application/rss+xml" title="nordpool.didnt.work RSS feed" href="https://nordpool.didnt.work/<?=strtolower($country)?>?rss"/>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Fira+Sans:wght@100;400;700&display=swap" rel="stylesheet">
-    <script src="/echarts.min.js"></script>
-
-    <style>
-        body {
-            font-family: 'fira sans', sans-serif;
-        }
-
-        header h1 {
-            font-size: 2rem;
-            text-align: left;
-            white-space: nowrap;
-        }
-
-        footer {
-            border-top: 1px solid #aaa;
-            padding: 0 .5rem;
-            margin-top: 2em;
-        }
-
-        .notice {
-            background-color: #e3f2fd;
-            border-left: 4px solid #2196f3;
-            padding: 16px 20px;
-            margin: 16px 0;
-            border-radius: 4px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        }
-
-        .notice p {
-            margin: 0;
-            color: #1565c0;
-            font-size: 14px;
-            line-height: 1.5;
-        }
-
-        #app footer p {
-            font-size: smaller;
-            text-align: left;
-        }
-
-        #legend {
-            text-align: center;
-            font-size: smaller;
-        }
-
-        .help {
-            font-weight: 400;
-            display: block;
-            font-size: 80%;
-        }
-
-        body {
-            font-family: sans-serif;
-            font-size: 16px;
-        }
-
-
-        #app {
-            width: 50rem;
-            max-width: 95%;
-            margin: 0 auto;
-        }
-
-        #app p {
-            line-height: 1.5;
-        }
-
-        table {
-            table-layout: fixed;
-            width: 100%;
-            border-collapse: collapse;
-            margin: 0 auto;
-        }
-
-        th,
-        td {
-            padding: 5px 10px;
-            border: 2px solid #fff;
-        }
-
-        table th {
-            white-space: nowrap;
-        }
-
-        tr.now {
-            outline: 3px solid #f00;
-        }
-
-        td.now-quarter {
-            outline: 3px solid #ff0;
-            outline-offset: -3px;
-        }
-
-        td.tomorrow.quarter-0 {
-            border-left: 10px solid #fff;
-        }
-
-        .price {
-            text-align: right;
-            color: #fff;
-            font-family: 'consolas', monospace;
-        }
-
-        th small span {
-            font-family: 'consolas', monospace;
-        }
-
-        .legend {
-            display: inline-block;
-            padding: 5px 10px;
-        }
-
-        .good {
-            background-color: rgb(<?= $percentColors[0]['color']['r'] ?>, <?= $percentColors[0]['color']['g'] ?>, <?= $percentColors[0]['color']['b'] ?>);
-            color: #fff;
-        }
-
-        .bad {
-            background-color: rgb(<?= $percentColors[2]['color']['r'] ?>, <?= $percentColors[2]['color']['g'] ?>, <?= $percentColors[2]['color']['b'] ?>);
-            color: #fff;
-        }
-
-        .extra-decimals {
-            opacity: .4;
-            font-size: 70%;
-        }
-
-        header {
-            display: grid;
-            grid-template-columns: 1fr auto;
-        }
-
-        header p {
-            text-align: right;
-            font-size: smaller;
-        }
-
-        .flag {
-            height: 1.5em;
-            margin: 0 .2em;
-        }
-
-        #chart {
-            height: 400px;
-            margin: 0 auto;
-        }
-
-        #chart-selector {
-            margin: 1em 0;
-            display: grid;
-            grid-template-columns: 1fr auto;
-        }
-
-        /* nice buttons */
-        #chart-selector a {
-            display: inline-block;
-            text-align: center;
-            font-size: 1rem;
-            font-weight: 600;
-            border-radius: 8px;
-            margin: 0 .3em;
-            padding: 0.5em 1em;
-            background-color: #f0f0f0;
-            color: #333;
-            text-decoration: none;
-            transition: background-color 0.3s, color 0.3s;
-        }
-
-        #chart-selector a:hover,
-        #chart-selector a[data-current] {
-            background-color: #333;
-            color: #fff;
-        }
-
-        /* Mobile responsive tables */
-        .mobile-tables {
-            display: none;
-        }
-
-        .mobile-table {
-            margin-bottom: 2em;
-        }
-
-        .mobile-table.hidden {
-            display: none;
-        }
-
-        #mobile-selector {
-            margin: 1em 0;
-            text-align: center;
-        }
-
-        #mobile-selector a {
-            display: inline-block;
-            text-align: center;
-            font-size: 1rem;
-            font-weight: 600;
-            border-radius: 8px;
-            margin: 0 .3em;
-            padding: 0.5em 1em;
-            background-color: #f0f0f0;
-            color: #333;
-            text-decoration: none;
-            transition: background-color 0.3s, color 0.3s;
-        }
-
-        #mobile-selector a:hover,
-        #mobile-selector a[data-current] {
-            background-color: #333;
-            color: #fff;
-        }
-
-        @media (max-width: 768px) {
-            body:not(.res-60) .desktop-table {
-                display: none;
-            }
-
-            body:not(.res-60) .mobile-tables {
-                display: block;
-            }
-
-            body.res-60 .mobile-tables {
-                display: none;
-            }
-
-            #chart-selector {
-                display: none;
-            }
-        }
-    </style>
-</head>
-
-<body<?=$resolution == 60 ? ' class="res-60"' : ''?>>
-
-<div id="app">
-
-    <header>
-        <h1>
-            🔌🏷️ <br/>€/kWh
-        </h1>
-        <p>
-            <?php foreach ($countryConfig as $code => $config) { ?>
-                <a class="flag" href="/<?=$config['code_lc'] === 'lv' ? '' : $config['code_lc']?>"><img
-                            src="/<?=$config['code_lc']?>.svg" alt="<?=$config['name']?>" width="32"
-                            height="32"/></a>
-            <?php } ?>
-            <br/>
-            <?=$locale->msg('subtitle')?><br/>
-            <?php if ($with_vat) { ?>
-                <?=$locale->msg('it is with VAT')?> <?=round($vat * 100)?>% (<a
-                        href="<?=$locale->route('/') . ($resolution == 60 ? '?res=60' : '')?>"><?=$locale->msg('show without VAT')?></a>)
-            <?php } else { ?>
-                <?=$locale->msg('it is without VAT')?> <?=round($vat * 100)?>% (<a
-                        href="<?=$locale->route('/?vat') . ($resolution == 60 ? '&res=60' : '')?>"><?=$locale->msg('show with VAT')?></a>)
-            <?php } ?>
-            <br/>
-            <?php if ($resolution == 15) { ?>
-                <?=$locale->msg('Resolution')?>: <strong>15min</strong> (<a
-                        href="<?=$locale->route('/' . ($with_vat ? '?vat&res=60' : '?res=60'))?>"><?=$locale->msg('show 1h')?></a>)
-            <?php } else { ?>
-                <?=$locale->msg('Resolution')?>: <strong>1h</strong> (<a
-                        href="<?=$locale->route('/' . ($with_vat ? '?vat' : ''))?>"><?=$locale->msg('show 15min')?></a>)
-            <?php } ?>
-        </p>
-    </header>
-
-    <?php if (date('Y-m-d') < '2025-10-08') { ?>
-        <div class="notice">
-            <p><?=$locale->msg('15min notice')?></p>
-        </div>
-    <?php } ?>
-
-
-    <?php if (!str_starts_with($_SERVER['HTTP_HOST'] ?? '', 'localhost') && $locale->get('code') === 'LV' && !isset($_GET['no-ads'])) { ?>
-        <script async
-                src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4590024878280519"
-                crossorigin="anonymous"></script>
-        <!-- nordpool header -->
-        <ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-4590024878280519"
-             data-ad-slot="9106834831" data-ad-format="auto" data-full-width-responsive="true"></ins>
-        <script>
-            (adsbygoogle = window.adsbygoogle || []).push({});
-        </script>
-    <?php } ?>
-
-    <!-- Desktop table -->
-    <table class="desktop-table">
-        <thead>
-        <tr>
-            <th></th>
-            <th colspan="<?=$quarters_per_hour?>"><?=$locale->msg('Šodien')?>
-                <span class="help"><?=$locale->formatDate($current_time, 'd. MMM')?></span><br/>
-                <small><?=$locale->msg('Vidēji')?> <span><?=$today_avg ? format($today_avg) : '—'?></span></small>
-            </th>
-            <th colspan="<?=$quarters_per_hour?>"><?=$locale->msg('Rīt')?>
-                <span
-                        class="help"><?=$locale->formatDate($current_time->modify('+1 day'), 'd. MMM')?></span><br/>
-                <small><?=$locale->msg('Vidēji')?> <span><?=$tomorrow_avg ? format($tomorrow_avg) : '—'?></span></small>
-            </th>
-        </tr>
-        <tr>
-            <th>🕑</th>
-            <?php if ($resolution == 15) { ?>
-                <th>:00</th>
-                <th>:15</th>
-                <th>:30</th>
-                <th>:45</th>
-                <th>:00</th>
-                <th>:15</th>
-                <th>:30</th>
-                <th>:45</th>
-            <?php } else { ?>
-                <th>:00</th>
-                <th>:00</th>
-            <?php } ?>
-        </tr>
-        </thead>
-        <tbody>
-        <?php
-        // Build legend and values arrays first
-        $legend = [];
-        $values['today'] = [];
-        $values['tomorrow'] = [];
-        for ($hour = 0; $hour < 24; $hour++) {
-            for ($q = 0; $q < $quarters_per_hour; $q++) {
-                if ($resolution == 15) {
-                    $legend[] = sprintf('%02d:%02d', $hour, $q * 15);
-                } else {
-                    $legend[] = sprintf('%02d:00', $hour);
-                }
-                $values['today'][] = $today[$hour][$q] ?? 0;
-                $values['tomorrow'][] = $tomorrow[$hour][$q] ?? 0;
-            }
-        }
-        ?>
-        <?php for ($hour = 0; $hour < 24; $hour++) {
-            $hour_label = sprintf('%02d', $hour) . '-' . sprintf('%02d', ($hour + 1) % 24);
-            ?>
-            <tr data-hours="<?=$hour?>">
-                <th><?=$hour_label?></th>
-                <?php
-                // Process quarters for today with colspan logic
-                $q = 0;
-                while ($q < $quarters_per_hour) {
-                    $value = $today[$hour][$q] ?? null;
-
-                    // Count consecutive quarters with same value
-                    $colspan = 1;
-                    $next_q = $q + 1;
-                    while ($next_q < $quarters_per_hour) {
-                        $next_value = $today[$hour][$next_q] ?? null;
-                        if ($value !== null && $next_value !== null && $value === $next_value) {
-                            $colspan++;
-                            $next_q++;
-                        } else {
-                            break;
-                        }
-                    }
-                    ?>
-                    <td class="price today quarter-<?=$q?>" data-quarter="<?=$q?>"
-                        <?php if ($colspan > 1) { ?>colspan="<?=$colspan?>"<?php } ?>
-                        style="background-color: <?=getColorPercentage($value ?? -9999, $today_min, $today_max)?>">
-                        <?=isset($value) ? format($value) : '-'?>
-                    </td>
-                    <?php
-                    $q = $next_q;
-                }
-                ?>
-                <?php
-                // Process quarters for tomorrow with colspan logic
-                $q = 0;
-                while ($q < $quarters_per_hour) {
-                    $value = $tomorrow[$hour][$q] ?? null;
-
-                    // Count consecutive quarters with same value
-                    $colspan = 1;
-                    $next_q = $q + 1;
-                    while ($next_q < $quarters_per_hour) {
-                        $next_value = $tomorrow[$hour][$next_q] ?? null;
-                        if ($value !== null && $next_value !== null && $value === $next_value) {
-                            $colspan++;
-                            $next_q++;
-                        } else {
-                            break;
-                        }
-                    }
-                    ?>
-                    <td class="price tomorrow quarter-<?=$q?>" data-quarter="<?=$q?>"
-                        <?php if ($colspan > 1) { ?>colspan="<?=$colspan?>"<?php } ?>
-                        style="<?=isset($value) ? '' : 'text-align: center; '?>background-color: <?=getColorPercentage($value ?? -9999, $tomorrow_min, $tomorrow_max)?>">
-                        <?=isset($value) ? format($value) : '-'?>
-                    </td>
-                    <?php
-                    $q = $next_q;
-                }
-                ?>
-            </tr>
-        <?php } ?>
-
-        <?php
-        // Add final point for chart continuity
-        $legend[] = '00:00';
-        $values['today'][] = $tomorrow[0][0] ?? 0;
-        ?>
-        </tbody>
-    </table>
-
-    <!-- Mobile tables -->
-    <div class="mobile-tables">
-        <?php if ($resolution == 15) { ?>
-            <div id="mobile-selector">
-                <a href="#" data-day="today" data-current><?=$locale->msg('Šodien')?></a>
-                <a href="#" data-day="tomorrow"><?=$locale->msg('Rīt')?></a>
-            </div>
-        <?php } ?>
-        <table class="mobile-table" data-day="today">
-            <thead>
-            <tr>
-                <th colspan="<?=$quarters_per_hour + 1?>"><?=$locale->msg('Šodien')?>
-                    <span class="help"><?=$locale->formatDate($current_time, 'd. MMM')?></span><br/>
-                    <small><?=$locale->msg('Vidēji')?> <span><?=$today_avg ? format($today_avg) : '—'?></span></small>
-                </th>
-            </tr>
-            <tr>
-                <th>🕑</th>
-                <?php if ($resolution == 15) { ?>
-                    <th>:00</th>
-                    <th>:15</th>
-                    <th>:30</th>
-                    <th>:45</th>
-                <?php } else { ?>
-                    <th>:00</th>
-                <?php } ?>
-            </tr>
-            </thead>
-            <tbody>
-            <?php for ($hour = 0; $hour < 24; $hour++) {
-                $hour_label = sprintf('%02d', $hour) . '-' . sprintf('%02d', ($hour + 1) % 24);
-                ?>
-                <tr data-hours="<?=$hour?>" data-day="today">
-                    <th><?=$hour_label?></th>
-                    <?php
-                    // Process quarters for today with colspan logic
-                    $q = 0;
-                    while ($q < $quarters_per_hour) {
-                        $value = $today[$hour][$q] ?? null;
-
-                        // Count consecutive quarters with same value
-                        $colspan = 1;
-                        $next_q = $q + 1;
-                        while ($next_q < $quarters_per_hour) {
-                            $next_value = $today[$hour][$next_q] ?? null;
-                            if ($value !== null && $next_value !== null && $value === $next_value) {
-                                $colspan++;
-                                $next_q++;
-                            } else {
-                                break;
-                            }
-                        }
-                        ?>
-                        <td class="price quarter-<?=$q?>" data-quarter="<?=$q?>"
-                            <?php if ($colspan > 1) { ?>colspan="<?=$colspan?>"<?php } ?>
-                            style="background-color: <?=getColorPercentage($value ?? -9999, $today_min, $today_max)?>">
-                            <?=isset($value) ? format($value) : '-'?>
-                        </td>
-                        <?php
-                        $q = $next_q;
-                    }
-                    ?>
-                </tr>
-            <?php } ?>
-            </tbody>
-        </table>
-
-        <table class="mobile-table<?=$resolution == 15 ? ' hidden' : ''?>" data-day="tomorrow">
-            <thead>
-            <tr>
-                <th colspan="<?=$quarters_per_hour + 1?>"><?=$locale->msg('Rīt')?>
-                    <span class="help"><?=$locale->formatDate($current_time->modify('+1 day'), 'd. MMM')?></span><br/>
-                    <small><?=$locale->msg('Vidēji')?>
-                        <span><?=$tomorrow_avg ? format($tomorrow_avg) : '—'?></span></small>
-                </th>
-            </tr>
-            <tr>
-                <th>🕑</th>
-                <?php if ($resolution == 15) { ?>
-                    <th>:00</th>
-                    <th>:15</th>
-                    <th>:30</th>
-                    <th>:45</th>
-                <?php } else { ?>
-                    <th>:00</th>
-                <?php } ?>
-            </tr>
-            </thead>
-            <tbody>
-            <?php for ($hour = 0; $hour < 24; $hour++) {
-                $hour_label = sprintf('%02d', $hour) . '-' . sprintf('%02d', ($hour + 1) % 24);
-                ?>
-                <tr data-hours="<?=$hour?>" data-day="tomorrow">
-                    <th><?=$hour_label?></th>
-                    <?php
-                    // Process quarters for tomorrow with colspan logic
-                    $q = 0;
-                    while ($q < $quarters_per_hour) {
-                        $value = $tomorrow[$hour][$q] ?? null;
-
-                        // Count consecutive quarters with same value
-                        $colspan = 1;
-                        $next_q = $q + 1;
-                        while ($next_q < $quarters_per_hour) {
-                            $next_value = $tomorrow[$hour][$next_q] ?? null;
-                            if ($value !== null && $next_value !== null && $value === $next_value) {
-                                $colspan++;
-                                $next_q++;
-                            } else {
-                                break;
-                            }
-                        }
-                        ?>
-                        <td class="price quarter-<?=$q?>" data-quarter="<?=$q?>"
-                            <?php if ($colspan > 1) { ?>colspan="<?=$colspan?>"<?php } ?>
-                            style="<?=isset($value) ? '' : 'text-align: center; '?>background-color: <?=getColorPercentage($value ?? -9999, $tomorrow_min, $tomorrow_max)?>">
-                            <?=isset($value) ? format($value) : '-'?>
-                        </td>
-                        <?php
-                        $q = $next_q;
-                    }
-                    ?>
-                </tr>
-            <?php } ?>
-            </tbody>
-        </table>
-    </div>
-
-    <p id="legend">
-        <span class="legend bad"><?=$locale->msg('Izvairāmies tērēt elektrību')?></span> <span
-                class="legend good"><?=$locale->msg('Krājam burciņā')?></span>
-    </p>
-
-    <div id="chart-selector">
-        <h2><?=$locale->msg('Primitīvs grafiks')?></h2>
-        <p>
-            <a href="#" data-day="today" data-current><?=$locale->msg('Šodien')?></a>
-            <a href="#" data-day="tomorrow"><?=$locale->msg('Rīt')?></a>
-        </p>
-    </div>
-
-    <div id="chart"></div>
-    <script>
-        const chart = echarts.init(document.getElementById('chart'));
-        const option = {
-            animation: false,
-            renderer: 'svg',
-            legend: {
-                show: false
-            },
-            grid: {
-                top: 50,
-                left: 40,
-                right: 10,
-                bottom: 20
-            },
-            title: {
-                show: false,
-            },
-            tooltip: {
-                trigger: 'axis',
-                formatter: function (params) {
-                    let timeLabel = params[0].name;
-                    let value = parseFloat(params[0].value);
-                    let strValue = value.toString().padEnd(4, '0').substring(0, 4);
-
-                    strValue += '<small>';
-                    strValue += value.toString().substring(4).padEnd(2, '0');
-                    strValue += '</small> €/kWh'
-
-                    let [hour, minute] = timeLabel.split(':').map(n => parseInt(n, 10));
-                    let endMinute = (minute + 15) % 60;
-                    let endHour = (minute + 15 >= 60) ? (hour + 1) % 24 : hour;
-
-                    return `
-                        ${timeLabel} - ${('' + endHour).padStart(2, '0')}:${('' + endMinute).padStart(2, '0')}<br/>
-                        ${strValue}
-                        `;
-                },
-                axisPointer: {
-                    type: 'cross',
-                    snap: true,
-                },
-            },
-            xAxis: {
-                type: 'category',
-                data: <?= json_encode(array_values($legend)) ?>,
-                boundaryGap: false,
-                axisLabel: {
-                    formatter: function (value) {
-                        let hour = value.split(':')[0];
-                        return hour;
-                    },
-                    interval: function (index, value) {
-                        // Show label only when minutes are :00
-                        return value.endsWith(':00');
-                    }
-                },
-                splitLine: {
-                    show: true,
-                    interval: 0,
-                    lineStyle: {
-                        type: 'dashed',
-                    },
-                },
-            },
-            yAxis: {
-                type: 'value',
-                axisLabel: {
-                    formatter: function (value) {
-                        return parseFloat(value).toFixed(2)
-                    }
-                },
-            },
-            series: [
-                {
-                    name: '€/kWh',
-                    type: 'line',
-                    step: 'end',
-                    symbol: 'none',
-                    data: <?= json_encode(array_values($values['today'])) ?>,
-                    markPoint: {
-                        data: [
-                            {
-                                type: 'max',
-                                name: 'Max',
-                                symbolOffset: [0, -10],
-                                itemStyle: {
-                                    color: '#a00',
-                                }
-                            },
-                            {
-                                type: 'min',
-                                name: 'Min',
-                                symbolOffset: [0, 10],
-                                itemStyle: {
-                                    color: '#0a0',
-                                }
-                            }
-                        ],
-                        symbol: 'rect',
-                        symbolSize: [40, 15],
-                        label: {
-                            color: '#fff',
-                            formatter: function (value) {
-                                return (Math.round(parseFloat(value.value) * 100) / 100).toFixed(2)
-                            }
-                        }
-                    },
-                    markLine: {
-                        data: [{type: 'average', name: '<?=$locale->msg('Vidēji')?>'}],
-                        symbol: 'none',
-                        label: {
-                            show: true,
-                            position: "insideStartTop",
-                            backgroundColor: "rgba(74, 101, 186, .3)",
-                            padding: [3, 3],
-                            // shadowColor: "ff0000",
-                        }
-                    }
-                },
-            ]
-        };
-
-        chart.setOption(option);
-
-        const dataset = {
-            'today': <?= json_encode(array_values($values['today'])) ?>,
-            'tomorrow': <?= json_encode(array_values($values['tomorrow'])) ?>,
-        };
-    </script>
-
-    <footer>
-        <p>
-            <?php if ($with_vat) { ?>
-                <?=$locale->msg('Price shown includes VAT')?>
-                (<a href="<?=$locale->route('/')?>"><?=$locale->msg('show without VAT')?></a>).
-            <?php } else { ?>
-                <?=$locale->msg('Price shown is without VAT')?>
-                (<a href="<?=$locale->route('/?vat')?>"><?=$locale->msg('show with VAT')?></a>).
-            <?php } ?>
-
-            <?=$locale->msgf(
-                    'disclaimer',
-                    $locale->msg('normal CSV') .
-                    ' (<a href="/nordpool-' . $locale->get('code_lc') . '.csv">' . $locale->msg("15min data") . '</a>, ' .
-                    '<a href="/nordpool-' . $locale->get('code_lc') . '-1h.csv">' . $locale->msg('1h average') . '</a>)',
-                    $locale->msg('Excel CSV') .
-                    ' (<a href="/nordpool-' . $locale->get('code_lc') . '-excel.csv">' . $locale->msg("15min data") . '</a>, ' .
-                    '<a href="/nordpool-' . $locale->get('code_lc') . '-1h-excel.csv">' . $locale->msg('1h average') . '</a>)',
-                    '<a href="https://nordpool.didnt.work/'. strtolower($country) . '?rss">rss</a>'
-            )?>
-    </footer>
-
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            // now let's highlight the hour and quarter continuously
-            let hours = null;
-            let quarter = null;
-            (function updateNow() {
-                const now = new Date();
-                const currentHours = now.getHours();
-                const currentQuarter = Math.floor(now.getMinutes() / 15);
-
-                if (hours !== currentHours || quarter !== currentQuarter) {
-                    Array.from(document.querySelectorAll('[data-hours]')).forEach((row) => {
-                        row.classList.remove('now');
-                    })
-                    Array.from(document.querySelectorAll('td.price')).forEach((cell) => {
-                        cell.classList.remove('now-quarter');
-                    })
-
-                    // desktop table
-                    const desktopRow = document.querySelector('.desktop-table tr[data-hours="' + currentHours + '"]');
-                    if (desktopRow) {
-                        desktopRow.classList.add('now');
-                        const allCells = desktopRow.querySelectorAll('td.price');
-                        if (allCells[currentQuarter]) {
-                            allCells[currentQuarter].classList.add('now-quarter');
-                        }
-                    }
-
-                    // mobile tables
-                    const mobileRow = document.querySelector('.mobile-table tr[data-hours="' + currentHours + '"][data-day="today"]');
-                    if (mobileRow) {
-                        mobileRow.classList.add('now');
-                        const quarterCells = mobileRow.querySelectorAll('td.price');
-                        if (quarterCells[currentQuarter]) {
-                            quarterCells[currentQuarter].classList.add('now-quarter');
-                        }
-                    }
-
-                    hours = currentHours;
-                    quarter = currentQuarter;
-                }
-                setTimeout(updateNow, 1000);
-            })()
-
-            document.querySelectorAll('#chart-selector a').forEach(element => element.addEventListener('click', (e) => {
-                e.preventDefault();
-                const day = e.target.dataset.day;
-                chart.setOption({
-                    series: [{
-                        data: dataset[day],
-                    }]
-                });
-                document.querySelectorAll('#chart-selector a').forEach((el) => {
-                    el.removeAttribute('data-current');
-                })
-                e.target.setAttribute('data-current', true);
-            }))
-
-            // mobile selector
-            document.querySelectorAll('#mobile-selector a').forEach(element => element.addEventListener('click', (e) => {
-                e.preventDefault();
-                const day = e.target.dataset.day;
-
-                document.querySelectorAll('.mobile-table').forEach((table) => {
-                    if (table.dataset.day === day) {
-                        table.classList.remove('hidden');
-                    } else {
-                        table.classList.add('hidden');
-                    }
-                })
-
-                chart.setOption({
-                    series: [{
-                        data: dataset[day],
-                    }]
-                });
-
-                document.querySelectorAll('#mobile-selector a').forEach((el) => {
-                    el.removeAttribute('data-current');
-                })
-                e.target.setAttribute('data-current', true);
-            }))
-        })
-    </script>
-</div>
-</body>
-
-</html>
-<?php
-$html = ob_get_clean();
-echo $html;
-Cache::set($cache_key, $html);

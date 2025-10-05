@@ -1,0 +1,216 @@
+body {
+    font-family: 'fira sans', sans-serif;
+}
+
+header h1 {
+    font-size: 2rem;
+    text-align: left;
+    white-space: nowrap;
+}
+
+footer {
+    border-top: 1px solid #aaa;
+    padding: 0 .5rem;
+    margin-top: 2em;
+}
+
+.notice {
+    background-color: #e3f2fd;
+    border-left: 4px solid #2196f3;
+    padding: 16px 20px;
+    margin: 16px 0;
+    border-radius: 4px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.notice p {
+    margin: 0;
+    color: #1565c0;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+#app footer p {
+    font-size: smaller;
+    text-align: left;
+}
+
+#legend {
+    text-align: center;
+    font-size: smaller;
+}
+
+.help {
+    font-weight: 400;
+    display: block;
+    font-size: 80%;
+}
+
+body {
+    font-family: sans-serif;
+    font-size: 16px;
+}
+
+
+#app {
+    width: 50rem;
+    max-width: 95%;
+    margin: 0 auto;
+}
+
+#app p {
+    line-height: 1.5;
+}
+
+table {
+    table-layout: fixed;
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0 auto;
+}
+
+th,
+td {
+    padding: 5px 10px;
+    border: 2px solid #fff;
+}
+
+table th {
+    white-space: nowrap;
+}
+
+tr.now {
+    outline: 3px solid #f00;
+}
+
+td.now-quarter {
+    outline: 3px solid #ff0;
+    outline-offset: -3px;
+}
+
+td.tomorrow.quarter-0 {
+    border-left: 10px solid #fff;
+}
+
+.price {
+    text-align: right;
+    color: #fff;
+    font-family: 'consolas', monospace;
+}
+
+th small span {
+    font-family: 'consolas', monospace;
+}
+
+.legend {
+    display: inline-block;
+    padding: 5px 10px;
+}
+
+.extra-decimals {
+    opacity: .4;
+    font-size: 70%;
+}
+
+header {
+    display: grid;
+    grid-template-columns: 1fr auto;
+}
+
+header p {
+    text-align: right;
+    font-size: smaller;
+}
+
+.flag {
+    height: 1.5em;
+    margin: 0 .2em;
+}
+
+#chart {
+    height: 400px;
+    margin: 0 auto;
+}
+
+#chart-selector {
+    margin: 1em 0;
+    display: grid;
+    grid-template-columns: 1fr auto;
+}
+
+/* nice buttons */
+#chart-selector a {
+    display: inline-block;
+    text-align: center;
+    font-size: 1rem;
+    font-weight: 600;
+    border-radius: 8px;
+    margin: 0 .3em;
+    padding: 0.5em 1em;
+    background-color: #f0f0f0;
+    color: #333;
+    text-decoration: none;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+#chart-selector a:hover,
+#chart-selector a[data-current] {
+    background-color: #333;
+    color: #fff;
+}
+
+/* Mobile responsive tables */
+.mobile-tables {
+    display: none;
+}
+
+.mobile-table {
+    margin-bottom: 2em;
+}
+
+.mobile-table.hidden {
+    display: none;
+}
+
+#mobile-selector {
+    margin: 1em 0;
+    text-align: center;
+}
+
+#mobile-selector a {
+    display: inline-block;
+    text-align: center;
+    font-size: 1rem;
+    font-weight: 600;
+    border-radius: 8px;
+    margin: 0 .3em;
+    padding: 0.5em 1em;
+    background-color: #f0f0f0;
+    color: #333;
+    text-decoration: none;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+#mobile-selector a:hover,
+#mobile-selector a[data-current] {
+    background-color: #333;
+    color: #fff;
+}
+
+@media (max-width: 768px) {
+    body:not(.res-60) .desktop-table {
+        display: none;
+    }
+
+    body:not(.res-60) .mobile-tables {
+        display: block;
+    }
+
+    body.res-60 .mobile-tables {
+        display: none;
+    }
+
+    #chart-selector {
+        display: none;
+    }
+}

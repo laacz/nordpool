@@ -4,3 +4,4 @@ nordpool.db
 public/*.csv
 cache
 tmp
+vendor/

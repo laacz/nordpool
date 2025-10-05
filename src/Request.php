@@ -27,7 +27,7 @@ class Request
 
     public function path(): string
     {
-        return explode('?', $this->uri())[0];
+        return rtrim(explode('?', $this->uri())[0], '/');
     }
 
     public function has(string $key): bool

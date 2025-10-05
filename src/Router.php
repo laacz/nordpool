@@ -26,7 +26,7 @@ class Router
         }
 
         // No route matched
-        abort();
+        abort(404, 'Not Found');
     }
 
     private function match(string $pattern, string $path): ?array

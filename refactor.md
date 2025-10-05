@@ -227,7 +227,7 @@ Tests for:
 ## Step 6: Move Existing Classes to src/ ✅
 
 ### Goal
-Reorganize existing classes (AppLocale, Cache, Lock) into src/ directory.
+Reorganize existing classes (AppLocale, Cache) into src/ directory.
 
 ### Why
 - Currently in functions.php (too large)
@@ -238,7 +238,6 @@ Reorganize existing classes (AppLocale, Cache, Lock) into src/ directory.
 Extract classes to dedicated files:
 - **src/AppLocale.php** - localization and formatting
 - **src/Cache.php** - file-based caching
-- **src/Lock.php** - file-based locking
 
 Add class alias for backwards compatibility: `class_alias(AppLocale::class, 'AppLocale')`
 
@@ -375,7 +374,6 @@ src/
   Config.php           - Configuration
   AppLocale.php        - Localization
   Cache.php            - Caching
-  Lock.php             - File locking
   Router.php           - Route matching
   View.php             - Template rendering
 

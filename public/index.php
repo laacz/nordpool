@@ -1,5 +1,7 @@
 <?php
 
+const DB_PATH = __DIR__ . '/../nordpool.db';
+
 $ret = require 'functions.php';
 if (!$ret) {
     return false;
@@ -63,7 +65,7 @@ function handleRss(Request $request, array $params, View $view): void
     $local_tomorrow_end = new DateTimeImmutable('today', $tz_local)->modify('+2 day');
     $last_update = new DateTimeImmutable($request->get('now', 'now'), $tz_local);
 
-    $DB = new PDO('sqlite:../nordpool.db');
+    $DB = new PDO('sqlite:' . DB_PATH);
     $priceRepo = new PriceRepository($DB);
 
     $data = $priceRepo->getPrices($local_tomorrow_start, $local_tomorrow_end, strtoupper($country));
@@ -105,7 +107,7 @@ function handleIndex(Request $request, array $params, View $view): void
     $current_time = new DateTimeImmutable($request->get('now', 'now'), $tz_local);
 
     // Handle cache invalidation
-    $mtime = stat('../nordpool.db')['mtime'] ?? 0;
+    $mtime = stat(DB_PATH)['mtime'] ?? 0;
     $cmtime = Cache::get('last_db_mtime', 0);
 
     if ($cmtime === 0 || $mtime === 0 || (int)$mtime !== (int)$cmtime || $request->has('purge')) {
@@ -130,7 +132,7 @@ function handleIndex(Request $request, array $params, View $view): void
     }
 
     // Fetch and process prices
-    $DB = new PDO('sqlite:../nordpool.db');
+    $DB = new PDO('sqlite:' . DB_PATH);
     $priceRepo = new PriceRepository($DB);
 
     $rows = $priceRepo->getPrices($local_start, $local_tomorrow_end, $locale->get('code'));

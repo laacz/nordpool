@@ -14,6 +14,7 @@ readonly class PriceRepository
         if ($last === false) {
             throw new RuntimeException('Cannot get last update time');
         }
+
         return new DateTimeImmutable($last);
     }
 

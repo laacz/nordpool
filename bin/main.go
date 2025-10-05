@@ -47,7 +47,7 @@ func initDatabase(db *sql.DB) error {
 }
 
 func main() {
-	db, err := sql.Open("sqlite3", "./nordpool.db")
+	db, err := sql.Open("sqlite3", "/var/www/nordpool.didnt.work/nordpool.db")
 	if err != nil {
 		log.Fatalf("Error opening database: %s", err)
 	}
@@ -61,20 +61,12 @@ func main() {
 	resolution := 15
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
-		case "serve":
-			port := "8080"
-			if len(os.Args) > 2 {
-				port = os.Args[2]
-			}
-			if err := serveHTTP(db, port); err != nil {
-				log.Fatalf("Error starting server: %s", err)
-			}
 		case "csv":
 			if len(os.Args) > 2 {
 				country = strings.ToUpper(os.Args[2])
 			}
 			if len(os.Args) > 3 {
-				fmt.Sscanf(os.Args[3], "%d", &resolution)
+				_, _ = fmt.Sscanf(os.Args[3], "%d", &resolution)
 			}
 
 			writeCsv(db, ",", country, resolution)
@@ -83,7 +75,7 @@ func main() {
 				country = strings.ToUpper(os.Args[2])
 			}
 			if len(os.Args) > 3 {
-				fmt.Sscanf(os.Args[3], "%d", &resolution)
+				_, _ = fmt.Sscanf(os.Args[3], "%d", &resolution)
 			}
 
 			writeCsv(db, ";", country, resolution)

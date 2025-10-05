@@ -1,7 +1,7 @@
 <feed>
     <title type="text">Nordpool spot prices tomorrow (<?=$local_tomorrow_start->format('Y-m-d')?>)
         for <?=$country?></title>
-    <updated><?=$current_time->format('Y-m-d\TH:i:sP')?></updated>
+    <updated><?=$last_update->format('Y-m-d\TH:i:sP')?></updated>
     <link rel="alternate" type="text/html" href="https://nordpool.didnt.work"/>
     <id>https://nordpool.didnt.work/feed</id>
     <?php foreach ($data as $price) {

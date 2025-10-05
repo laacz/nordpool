@@ -61,7 +61,7 @@ function handleRss(Request $request, array $params, View $view): void
     $tz_local = new DateTimeZone($locale->get('timezone'));
     $local_tomorrow_start = new DateTimeImmutable('tomorrow', $tz_local);
     $local_tomorrow_end = new DateTimeImmutable('today', $tz_local)->modify('+2 day');
-    $current_time = new DateTimeImmutable($request->get('now', 'now'), $tz_local);
+    $last_update = new DateTimeImmutable($request->get('now', 'now'), $tz_local);
 
     $DB = new PDO('sqlite:../nordpool.db');
     $priceRepo = new PriceRepository($DB);
@@ -75,7 +75,7 @@ function handleRss(Request $request, array $params, View $view): void
     $view->render('rss', [
         'local_tomorrow_start' => $local_tomorrow_start,
         'country' => $country,
-        'current_time' => $current_time,
+        'last_update' => $last_update,
         'data' => $data,
         'tz_local' => $tz_local,
         'vat' => $vat,

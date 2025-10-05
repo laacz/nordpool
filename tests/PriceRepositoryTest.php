@@ -215,3 +215,20 @@ test('querying for local today gets all hours including first hour', function ()
         ->and($timestamps)->toContain('2025-10-04 01:00:00')
         ->and($timestamps)->not->toContain('2025-10-04 23:00:00');
 });
+
+test('lastUpdate returns the most recent created_at timestamp', function () {
+    $pdo = new PDO('sqlite::memory:');
+    create_tables($pdo);
+
+    $pdo->exec("INSERT INTO price_indices VALUES
+        ('LV', '2025-10-04 10:00:00+00:00', '2025-10-04 10:15:00+00:00', 123.45, 15, '2025-10-01 12:00:00+00:00'),
+        ('LV', '2025-10-05 10:00:00+00:00', '2025-10-05 10:15:00+00:00', 234.56, 15, '2025-10-02 12:00:00+00:00'),
+        ('LV', '2025-10-06 10:00:00+00:00', '2025-10-06 10:15:00+00:00', 345.67, 15, '2025-10-03 12:00:00+00:00')
+    ");
+
+    $repo = new PriceRepository($pdo);
+    $lastUpdate = $repo->lastUpdate();
+
+    expect($lastUpdate)->toBeInstanceOf(DateTimeImmutable::class)
+        ->and($lastUpdate->format('Y-m-d H:i:s'))->toBe('2025-10-03 12:00:00');
+});

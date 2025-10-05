@@ -5,6 +5,19 @@ readonly class PriceRepository
     public function __construct(private PDO $db, private DateTimeZone $tz = new DateTimeZone('UTC')) {}
 
     /**
+     * @throws Exception
+     */
+    public function lastUpdate(): DateTimeImmutable
+    {
+        $res = $this->db->query('SELECT MAX(created_at) FROM price_indices');
+        $last = $res->fetchColumn();
+        if ($last === false) {
+            throw new RuntimeException('Cannot get last update time');
+        }
+        return new DateTimeImmutable($last);
+    }
+
+    /**
      * @return Price[]
      *
      * @throws \DateMalformedStringException

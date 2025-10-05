@@ -27,7 +27,7 @@ test('RSS view renders with Price objects', function () {
     $view->render('rss', [
         'local_tomorrow_start' => new DateTimeImmutable('2025-10-06', $tz_local),
         'country' => 'LV',
-        'current_time' => new DateTimeImmutable('2025-10-05 12:00:00', $tz_local),
+        'last_update' => new DateTimeImmutable('2025-10-05 12:00:00', $tz_local),
         'data' => $prices,
         'tz_local' => $tz_local,
         'vat' => 0.21,
@@ -50,7 +50,7 @@ test('RSS view renders with empty data', function () {
     $view->render('rss', [
         'local_tomorrow_start' => new DateTimeImmutable('2025-10-06', $tz_local),
         'country' => 'LV',
-        'current_time' => new DateTimeImmutable('2025-10-05 12:00:00', $tz_local),
+        'last_update' => new DateTimeImmutable('2025-10-05 12:00:00', $tz_local),
         'data' => [],
         'tz_local' => $tz_local,
         'vat' => 0.21,

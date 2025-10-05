@@ -6,8 +6,8 @@ if (!$ret) {
 
 try {
     $request = new Request;
-    $countryConfig = getCountryConfig();
-    $translations = getTranslations();
+    $countryConfig = Config::getCountries();
+    $translations = Config::getTranslations();
 
     $parts = explode('/', $request->path());
     $country = strtoupper($parts[0] ?? 'lv');

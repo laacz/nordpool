@@ -1,7 +1,7 @@
 <?php
 
 test('matches empty path pattern', function () {
-    $router = new Router();
+    $router = new Router;
     $matched = false;
 
     $router->get('', function () use (&$matched) {
@@ -15,7 +15,7 @@ test('matches empty path pattern', function () {
 });
 
 test('matches path with country parameter', function () {
-    $router = new Router();
+    $router = new Router;
     $capturedCountry = null;
 
     $router->get('{country}', function (Request $request, array $params) use (&$capturedCountry) {
@@ -29,7 +29,7 @@ test('matches path with country parameter', function () {
 });
 
 test('passes request and params to handler', function () {
-    $router = new Router();
+    $router = new Router;
     $receivedRequest = null;
     $receivedParams = null;
 
@@ -47,7 +47,7 @@ test('passes request and params to handler', function () {
 });
 
 test('calls first matching route', function () {
-    $router = new Router();
+    $router = new Router;
     $called = [];
 
     $router->get('', function () use (&$called) {
@@ -65,7 +65,7 @@ test('calls first matching route', function () {
 });
 
 test('extracts multiple parameters', function () {
-    $router = new Router();
+    $router = new Router;
     $params = null;
 
     $router->get('{country}/{city}', function (Request $request, array $p) use (&$params) {
@@ -82,7 +82,7 @@ test('extracts multiple parameters', function () {
 });
 
 test('matches RSS route without country', function () {
-    $router = new Router();
+    $router = new Router;
     $matched = false;
 
     $router->get('rss', function () use (&$matched) {
@@ -96,7 +96,7 @@ test('matches RSS route without country', function () {
 });
 
 test('matches RSS route with country parameter', function () {
-    $router = new Router();
+    $router = new Router;
     $capturedCountry = null;
 
     $router->get('{country}/rss', function (Request $request, array $params) use (&$capturedCountry) {

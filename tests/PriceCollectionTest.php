@@ -1,5 +1,6 @@
-<?php /** @noinspection PhpUnhandledExceptionInspection */
+<?php
 
+/** @noinspection PhpUnhandledExceptionInspection */
 test('transforms prices into 15min grid', function () {
     $prices = [
         new Price(0.123, new DateTimeImmutable('2025-10-04 10:00:00'), new DateTimeImmutable('2025-10-04 10:15:00'), 'LV', 15),

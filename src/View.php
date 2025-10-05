@@ -31,6 +31,7 @@ class View
     {
         ob_start();
         $this->render($template, $data);
+
         return ob_get_clean();
     }
 }

@@ -1,5 +1,6 @@
-<?php /** @noinspection PhpUnhandledExceptionInspection */
+<?php
 
+/** @noinspection PhpUnhandledExceptionInspection */
 test('fetches prices for date range', function () {
     $pdo = new PDO('sqlite::memory:');
     create_tables($pdo);

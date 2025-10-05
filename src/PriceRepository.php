@@ -2,21 +2,15 @@
 
 readonly class PriceRepository
 {
-    public function __construct(
-        private PDO          $db,
-        private DateTimeZone $tz = new DateTimeZone('UTC'),
-    ) {}
+    public function __construct(private PDO $db, private DateTimeZone $tz = new DateTimeZone('UTC')) {}
 
     /**
      * @return Price[]
+     *
      * @throws \DateMalformedStringException
      */
-    public function getPrices(
-        DateTimeImmutable $startDate,
-        DateTimeImmutable $endDate,
-        string $country = 'LV',
-        int $resolution = 15,
-    ): array {
+    public function getPrices(DateTimeImmutable $startDate, DateTimeImmutable $endDate, string $country = 'LV', int $resolution = 15): array
+    {
         $sql = '
             SELECT *
             FROM price_indices
@@ -37,11 +31,11 @@ readonly class PriceRepository
 
         return array_map(
             fn ($row) => new Price(
-                price: (float) $row['value'] / 1000,
+                price: (float)$row['value'] / 1000,
                 startDate: new DateTimeImmutable($row['ts_start']),
                 endDate: new DateTimeImmutable($row['ts_end']),
                 country: $row['country'],
-                resolution: (int) $row['resolution_minutes']
+                resolution: (int)$row['resolution_minutes']
             ),
             $stmt->fetchAll(PDO::FETCH_ASSOC),
         );

@@ -1,5 +1,6 @@
-<?php /** @noinspection PhpUnhandledExceptionInspection */
+<?php
 
+/** @noinspection PhpUnhandledExceptionInspection */
 test('renders view with data', function () {
     $view = new View(__DIR__ . '/fixtures');
 
@@ -31,7 +32,7 @@ test('renders to string', function () {
 test('throws exception for missing view', function () {
     $view = new View(__DIR__ . '/fixtures');
 
-    expect(fn() => $view->render('nonexistent'))
+    expect(fn () => $view->render('nonexistent'))
         ->toThrow(Exception::class, 'View not found: nonexistent');
 });
 
@@ -52,7 +53,7 @@ test('renders views from default path', function () {
     $testFile = $defaultViewPath . '/default_test.php';
     file_put_contents($testFile, 'Default path');
 
-    $view = new View();
+    $view = new View;
     $output = $view->renderToString('default_test');
 
     expect($output)->toBe('Default path');

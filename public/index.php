@@ -1,4 +1,5 @@
 <?php
+
 $ret = require 'functions.php';
 if (!$ret) {
     return false;
@@ -6,8 +7,8 @@ if (!$ret) {
 
 try {
     $request = new Request;
-    $router = new Router();
-    $view = new View();
+    $router = new Router;
+    $view = new View;
 
     // RSS routes
     $router->get('rss', function (Request $request, array $params) use ($view) {
@@ -164,7 +165,7 @@ function handleIndex(Request $request, array $params, View $view): void
         'with_vat' => $with_vat,
         'vat' => $vat,
         'current_time' => $current_time,
-        'viewHelper' => new ViewHelper(),
+        'viewHelper' => new ViewHelper,
         'today' => $today,
         'tomorrow' => $tomorrow,
         'today_avg' => $today_avg,

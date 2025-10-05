@@ -12,8 +12,8 @@ class ViewHelper
     {
         $num = number_format($number, 4);
 
-        return substr($num, 0, strpos($num, '.') + 3).
-            '<span class="extra-decimals">'.substr($num, -2).'</span>';
+        return substr($num, 0, strpos($num, '.') + 3) .
+            '<span class="extra-decimals">' . substr($num, -2) . '</span>';
     }
 
     public function getColorPercentage(float $value, float $min, float $max): string
@@ -43,7 +43,7 @@ class ViewHelper
             'b' => floor($lower['color']['b'] * $pctLower + $upper['color']['b'] * $pctUpper),
         ];
 
-        return 'rgb('.implode(',', [$color['r'], $color['g'], $color['b']]).')';
+        return 'rgb(' . implode(',', [$color['r'], $color['g'], $color['b']]) . ')';
     }
 
     public function getLegendColors(): array

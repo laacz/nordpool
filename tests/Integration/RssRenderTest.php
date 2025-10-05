@@ -1,5 +1,6 @@
-<?php /** @noinspection PhpUnhandledExceptionInspection */
+<?php
 
+/** @noinspection PhpUnhandledExceptionInspection */
 test('RSS view renders with Price objects', function () {
     $view = new View(__DIR__ . '/../../views');
     $tz_utc = new DateTimeZone('UTC');
@@ -87,7 +88,7 @@ test('index view renders with price data', function () {
         'with_vat' => false,
         'vat' => 0.21,
         'current_time' => new DateTimeImmutable('2025-10-05 12:00:00', new DateTimeZone('Europe/Riga')),
-        'viewHelper' => new ViewHelper(),
+        'viewHelper' => new ViewHelper,
         'today' => $today,
         'tomorrow' => $tomorrow,
         'today_avg' => 0.15,

@@ -20,6 +20,7 @@ class Router
             $params = $this->match($route['pattern'], $path);
             if ($params !== null) {
                 call_user_func($route['handler'], $request, $params);
+
                 return;
             }
         }

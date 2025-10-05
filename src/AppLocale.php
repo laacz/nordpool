@@ -29,7 +29,7 @@ class AppLocale
      */
     public function formatDate(mixed $time, string $format = 'd.m.Y H:i'): string|false
     {
-        if (! $this->dateFormatter->setPattern($format)) {
+        if (!$this->dateFormatter->setPattern($format)) {
             return false;
         }
 
@@ -55,9 +55,9 @@ class AppLocale
     {
         $lang = match ($this->config['code']) {
             'LV' => '',
-            default => $this->config['code_lc'].'/',
+            default => $this->config['code_lc'] . '/',
         };
 
-        return '/'.$lang.ltrim($route, '/');
+        return '/' . $lang . ltrim($route, '/');
     }
 }

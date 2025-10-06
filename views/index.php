@@ -172,6 +172,8 @@
                     }
                     ?>
                     <td class="price today quarter-<?=$q?>" data-quarter="<?=$q?>"
+                        data-start="<?=$current_time->format('Y-m-d')?> <?=sprintf('%02d:%02d', $hour, $q * 15)?>"
+                        data-end="<?=$current_time->format('Y-m-d')?> <?=sprintf('%02d:%02d', $hour, $next_q * 15)?>"
                         <?php if ($colspan > 1) { ?>colspan="<?=$colspan?>"<?php } ?>
                         style="background-color: <?=$viewHelper->getColorPercentage($value ?? -9999, $today_min, $today_max)?>">
                         <?=isset($value) ? $viewHelper->format($value) : '-'?>
@@ -200,6 +202,8 @@
                     }
                     ?>
                     <td class="price tomorrow quarter-<?=$q?>" data-quarter="<?=$q?>"
+                        data-start="<?=$current_time->modify('+1 day')->format('Y-m-d')?> <?=sprintf('%02d:%02d', $hour, $q * 15)?>"
+                        data-end="<?=$current_time->format('Y-m-d')?> <?=sprintf('%02d:%02d', $hour, $next_q * 15)?>"
                         <?php if ($colspan > 1) { ?>colspan="<?=$colspan?>"<?php } ?>
                         style="<?=isset($value) ? '' : 'text-align: center; '?>background-color: <?=$viewHelper->getColorPercentage($value ?? -9999, $tomorrow_min, $tomorrow_max)?>">
                         <?=isset($value) ? $viewHelper->format($value) : '-'?>
@@ -274,6 +278,8 @@
                         }
                         ?>
                         <td class="price quarter-<?=$q?>" data-quarter="<?=$q?>"
+                            data-start="<?=$current_time->format('Y-m-d')?> <?=sprintf('%02d:%02d', $hour, $q * 15)?>"
+                            data-end="<?=$current_time->format('Y-m-d')?> <?=sprintf('%02d:%02d', $hour, $next_q * 15)?>"
                             <?php if ($colspan > 1) { ?>colspan="<?=$colspan?>"<?php } ?>
                             style="background-color: <?=$viewHelper->getColorPercentage($value ?? -9999, $today_min, $today_max)?>">
                             <?=isset($value) ? $viewHelper->format($value) : '-'?>
@@ -334,6 +340,8 @@
                         }
                         ?>
                         <td class="price quarter-<?=$q?>" data-quarter="<?=$q?>"
+                            data-start="<?=$current_time->modify('+1 day')->format('Y-m-d')?> <?=sprintf('%02d:%02d', $hour, $q * 15)?>"
+                            data-end="<?=$current_time->format('Y-m-d')?> <?=sprintf('%02d:%02d', $hour, $next_q * 15)?>"
                             <?php if ($colspan > 1) { ?>colspan="<?=$colspan?>"<?php } ?>
                             style="<?=isset($value) ? '' : 'text-align: center; '?>background-color: <?=$viewHelper->getColorPercentage($value ?? -9999, $tomorrow_min, $tomorrow_max)?>">
                             <?=isset($value) ? $viewHelper->format($value) : '-'?>
@@ -516,14 +524,21 @@
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             // now let's highlight the hour and quarter continuously
-            let hours = null;
-            let quarter = null;
+            let lastCurrentTime = null;
             (function updateNow() {
                 const now = new Date();
                 const currentHours = now.getHours();
-                const currentQuarter = Math.floor(now.getMinutes() / 15);
+                const currentMinutes = now.getMinutes();
+                const currentQuarter = Math.floor(currentMinutes / 15);
 
-                if (hours !== currentHours || quarter !== currentQuarter) {
+                // Format current datetime as "YYYY-MM-DD HH:MM" (rounded down to quarter)
+                const year = now.getFullYear();
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const day = String(now.getDate()).padStart(2, '0');
+                const quarterMinutes = String(currentQuarter * 15).padStart(2, '0');
+                const currentTime = `${year}-${month}-${day} ${String(currentHours).padStart(2, '0')}:${quarterMinutes}`;
+
+                if (lastCurrentTime !== currentTime) {
                     Array.from(document.querySelectorAll('[data-hours]')).forEach((row) => {
                         row.classList.remove('now');
                     })
@@ -536,8 +551,13 @@
                     if (desktopRow) {
                         desktopRow.classList.add('now');
                         const allCells = desktopRow.querySelectorAll('td.price');
-                        if (allCells[currentQuarter]) {
-                            allCells[currentQuarter].classList.add('now-quarter');
+                        for (const cell of allCells) {
+                            const start = cell.getAttribute('data-start');
+                            const end = cell.getAttribute('data-end');
+                            if (start && end && currentTime >= start && currentTime < end) {
+                                cell.classList.add('now-quarter');
+                                break;
+                            }
                         }
                     }
 
@@ -546,13 +566,17 @@
                     if (mobileRow) {
                         mobileRow.classList.add('now');
                         const quarterCells = mobileRow.querySelectorAll('td.price');
-                        if (quarterCells[currentQuarter]) {
-                            quarterCells[currentQuarter].classList.add('now-quarter');
+                        for (const cell of quarterCells) {
+                            const start = cell.getAttribute('data-start');
+                            const end = cell.getAttribute('data-end');
+                            if (start && end && currentTime >= start && currentTime < end) {
+                                cell.classList.add('now-quarter');
+                                break;
+                            }
                         }
                     }
 
-                    hours = currentHours;
-                    quarter = currentQuarter;
+                    lastCurrentTime = currentTime;
                 }
                 setTimeout(updateNow, 1000);
             })()

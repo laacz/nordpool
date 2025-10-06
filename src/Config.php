@@ -72,7 +72,7 @@ class Config
                 'LT' => 'Rodoma kaina be PVM',
                 'EE' => 'Näidatud hind on ilma käibemaksuta',
             ],
-            'Atspoguļotā cena iekļauj PVN (rādīt bez PVN)' => [
+            'Price shown includes VAT' => [
                 'LV' => 'Atspoguļotā cena iekļauj PVN',
                 'LT' => 'Rodoma kaina su PVM',
                 'EE' => 'Näidatud hind on käibemaksuga',

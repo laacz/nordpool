@@ -30,7 +30,7 @@ class Config
                 'flag' => '🇪🇪',
                 'locale' => 'et_EE',
                 'timezone' => 'Europe/Tallinn',
-                'vat' => 0.20,
+                'vat' => 0.24,
             ],
         ];
 
@@ -134,8 +134,8 @@ class Config
             ],
             '15min notice' => [
                 'LV' => 'Sākot ar 1. oktobri, biržas cenas tiek noteiktas ar 15 minūšu soli. Iepriekš solis bija stunda. Tas nekur nav pazudis. Saite ir augšā.',
-                'LT' => 'Alates 1. oktoobrist määratakse börsihinnad 15-minutilise sammuga. Varem oli samm tund. See pole kuhugi kadunud. Link on üleval.',
-                'EE' => 'Nuo spalio 1 d. biržos kainos nustatomos 15 minučių intervalu. Anksčiau intervalas buvo valanda. Tai niekur nedingo. Nuoroda yra viršuje.',
+                'LT' => 'Nuo spalio 1 d. biržos kainos nustatomos 15 minučių intervalu. Anksčiau intervalas buvo valanda. Tai niekur nedingo. Nuoroda yra viršuje.',
+                'EE' => 'Alates 1. oktoobrist määratakse börsihinnad 15-minutilise sammuga. Varem oli samm tund. See pole kuhugi kadunud. Link on üleval.',
             ],
             'Resolution' => [
                 'LV' => 'Uzskaites solis',

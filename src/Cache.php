@@ -7,8 +7,15 @@ class Cache
     public static function get(string $key, mixed $default = null): mixed
     {
         $file = self::DIR . md5($key) . '.cache';
-        if (file_exists($file) && (time() - filemtime($file) < 3600)) {
-            return unserialize(file_get_contents($file));
+        if (file_exists($file)) {
+            $fileTime = filemtime($file);
+            $fileDate = date('Y-m-d', $fileTime);
+            $todayDate = date('Y-m-d');
+
+            // Cache is valid if it was created today
+            if ($fileDate === $todayDate) {
+                return unserialize(file_get_contents($file));
+            }
         }
 
         return $default;

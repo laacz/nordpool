@@ -117,7 +117,7 @@ function handleIndex(Request $request, array $params, View $view): void
 
     // Check cache
     $with_vat = $request->has('vat');
-    $cache_key = 'prices_' . $locale->get('code') . '_' . $current_time->format('Ymd_Hi') . '_' . ($with_vat ? 'vat' : 'novat') . '_' . $resolution;
+    $cache_key = 'prices_' . $locale->get('code') . '_' . $current_time->format('Ymd') . '_' . ($with_vat ? 'vat' : 'novat') . '_' . $resolution;
 
     $html = Cache::get($cache_key);
 

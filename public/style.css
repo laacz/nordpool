@@ -191,6 +191,16 @@ header p {
     transition: background-color 0.3s, color 0.3s;
 }
 
+a:link,
+a:visited {
+    color: blue;
+}
+
+a:hover, 
+a:active {
+    text-decoration: none;
+}
+
 #mobile-selector a:hover,
 #mobile-selector a[data-current] {
     background-color: #333;

@@ -73,6 +73,14 @@
                 <?=$locale->msg('Resolution')?>: <strong>1h</strong> (<a
                         href="<?=$locale->route('/' . ($with_vat ? '?vat' : ''))?>"><?=$locale->msg('show 15min')?></a>)
             <?php } ?>
+            <br/>
+            Krāsas
+            <select id="heatmap-threshold">
+                <option value="0">automātiski</option>
+                <?php for ($threshold = 5; $threshold < 50; $threshold+=5) { ?>
+                    <option value="<?=$threshold?>"><?=number_format($threshold/100, 2, '.', '')?>+€</option>
+                <?php } ?>
+            </select>
         </p>
     </header>
 
@@ -174,8 +182,10 @@
                     <td class="price today quarter-<?=$q?>" data-quarter="<?=$q?>"
                         data-start="<?=$current_time->format('Y-m-d')?> <?=sprintf('%02d:%02d', $hour, $q * 15)?>"
                         data-end="<?=$current_time->format('Y-m-d')?> <?=sprintf('%02d:%02d', $hour, $next_q * 15)?>"
-                        <?php if ($colspan > 1) { ?>colspan="<?=$colspan?>"<?php } ?>
-                        style="background-color: <?=$viewHelper->getColorPercentage($value ?? -9999, $today_min, $today_max)?>">
+                        data-value="<?=$value ?? ''?>"
+                        data-min="<?=$today_min?>"
+                        data-max="<?=$today_max?>"
+                        <?php if ($colspan > 1) { ?>colspan="<?=$colspan?>"<?php } ?>>
                         <?=isset($value) ? $viewHelper->format($value) : '-'?>
                     </td>
                     <?php
@@ -204,8 +214,11 @@
                     <td class="price tomorrow quarter-<?=$q?>" data-quarter="<?=$q?>"
                         data-start="<?=$current_time->modify('+1 day')->format('Y-m-d')?> <?=sprintf('%02d:%02d', $hour, $q * 15)?>"
                         data-end="<?=$current_time->format('Y-m-d')?> <?=sprintf('%02d:%02d', $hour, $next_q * 15)?>"
+                        data-value="<?=$value ?? ''?>"
+                        data-min="<?=$tomorrow_min?>"
+                        data-max="<?=$tomorrow_max?>"
                         <?php if ($colspan > 1) { ?>colspan="<?=$colspan?>"<?php } ?>
-                        style="<?=isset($value) ? '' : 'text-align: center; '?>background-color: <?=$viewHelper->getColorPercentage($value ?? -9999, $tomorrow_min, $tomorrow_max)?>">
+                        <?php if (!isset($value)) { ?>style="text-align: center;"<?php } ?>>
                         <?=isset($value) ? $viewHelper->format($value) : '-'?>
                     </td>
                     <?php
@@ -280,8 +293,10 @@
                         <td class="price quarter-<?=$q?>" data-quarter="<?=$q?>"
                             data-start="<?=$current_time->format('Y-m-d')?> <?=sprintf('%02d:%02d', $hour, $q * 15)?>"
                             data-end="<?=$current_time->format('Y-m-d')?> <?=sprintf('%02d:%02d', $hour, $next_q * 15)?>"
-                            <?php if ($colspan > 1) { ?>colspan="<?=$colspan?>"<?php } ?>
-                            style="background-color: <?=$viewHelper->getColorPercentage($value ?? -9999, $today_min, $today_max)?>">
+                            data-value="<?=$value ?? ''?>"
+                            data-min="<?=$today_min?>"
+                            data-max="<?=$today_max?>"
+                            <?php if ($colspan > 1) { ?>colspan="<?=$colspan?>"<?php } ?>>
                             <?=isset($value) ? $viewHelper->format($value) : '-'?>
                         </td>
                         <?php
@@ -342,8 +357,11 @@
                         <td class="price quarter-<?=$q?>" data-quarter="<?=$q?>"
                             data-start="<?=$current_time->modify('+1 day')->format('Y-m-d')?> <?=sprintf('%02d:%02d', $hour, $q * 15)?>"
                             data-end="<?=$current_time->format('Y-m-d')?> <?=sprintf('%02d:%02d', $hour, $next_q * 15)?>"
+                            data-value="<?=$value ?? ''?>"
+                            data-min="<?=$tomorrow_min?>"
+                            data-max="<?=$tomorrow_max?>"
                             <?php if ($colspan > 1) { ?>colspan="<?=$colspan?>"<?php } ?>
-                            style="<?=isset($value) ? '' : 'text-align: center; '?>background-color: <?=$viewHelper->getColorPercentage($value ?? -9999, $tomorrow_min, $tomorrow_max)?>">
+                            <?php if (!isset($value)) { ?>style="text-align: center;"<?php } ?>>
                             <?=isset($value) ? $viewHelper->format($value) : '-'?>
                         </td>
                         <?php
@@ -523,6 +541,93 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
+            const storage = window.localStorage;
+            const heatmapThresholdSelect = document.getElementById('heatmap-threshold');
+
+            // Color gradient configuration (matches PHP ViewHelper)
+            const percentColors = [
+                {pct: 0.0, color: {r: 0x00, g: 0x88, b: 0x00}},
+                {pct: 0.5, color: {r: 0xAA, g: 0xAA, b: 0x00}},
+                {pct: 1.0, color: {r: 0xAA, g: 0x00, b: 0x00}}
+            ];
+
+            // Port of PHP getColorPercentage function
+            function getColorPercentage(value, min, max) {
+                if (value === -9999) {
+                    return '#fff';
+                }
+
+                let pct = (max - min) === 0 ? 0 : (value - min) / (max - min);
+                // Clamp percentage to [0, 1] range to handle threshold overrides
+                pct = Math.max(0, Math.min(1, pct));
+
+                let i = 1;
+                for (; i < percentColors.length - 1; i++) {
+                    if (pct < percentColors[i].pct) {
+                        break;
+                    }
+                }
+
+                const lower = percentColors[i - 1];
+                const upper = percentColors[i];
+                const range = upper.pct - lower.pct;
+                const rangePct = (pct - lower.pct) / range;
+                const pctLower = 1 - rangePct;
+                const pctUpper = rangePct;
+
+                const color = {
+                    r: Math.floor(lower.color.r * pctLower + upper.color.r * pctUpper),
+                    g: Math.floor(lower.color.g * pctLower + upper.color.g * pctUpper),
+                    b: Math.floor(lower.color.b * pctLower + upper.color.b * pctUpper)
+                };
+
+                return `rgb(${color.r},${color.g},${color.b})`;
+            }
+
+            // Apply colors to all price cells
+            function applyColors() {
+                const threshold = parseInt(heatmapThresholdSelect.value, 10);
+
+                document.querySelectorAll('td.price').forEach(cell => {
+                    const value = parseFloat(cell.getAttribute('data-value'));
+
+                    let color;
+                    if (threshold > 0) {
+                        // binary coloring
+                        const thresholdValue = threshold / 100; 
+                        if (isNaN(value)) {
+                            color = '#fff';
+                        } else if (value < thresholdValue) {
+                            color = 'rgb(0,136,0)'; // Green
+                        } else {
+                            color = 'rgb(170,0,0)'; // Red
+                        }
+                    } else {
+                        // gradient coloring
+                        const min = parseFloat(cell.getAttribute('data-min'));
+                        const max = parseFloat(cell.getAttribute('data-max'));
+                        color = getColorPercentage(value, min, max);
+                    }
+
+                    cell.style.backgroundColor = color;
+                });
+            }
+
+            heatmapThresholdSelect.addEventListener('change', (e) => {
+                const value = parseInt(e.target.value, 10);
+                if (!isNaN(value)) {
+                    storage.setItem('heatmap-threshold', value.toString());
+                    applyColors();
+                }
+            });
+
+            const savedThreshold = parseInt(storage.getItem('heatmap-threshold'), 10);
+            if (!isNaN(savedThreshold)) {
+                heatmapThresholdSelect.value = savedThreshold.toString();
+            }
+
+            applyColors();
+
             // now let's highlight the hour and quarter continuously
             let lastCurrentTime = null;
             (function updateNow() {

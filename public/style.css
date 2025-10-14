@@ -15,8 +15,8 @@ footer {
 }
 
 .notice {
-    background-color: #e3f2fd;
-    border-left: 4px solid #2196f3;
+    border-left-width: 4px;
+    border-left-style: solid;
     padding: 16px 20px;
     margin: 16px 0;
     border-radius: 4px;
@@ -25,9 +25,26 @@ footer {
 
 .notice p {
     margin: 0;
-    color: #1565c0;
     font-size: 14px;
     line-height: 1.5;
+}
+
+.info {
+    background-color: #e3f2fd;
+    border-left-color: #2196f3;
+}
+
+.info p {
+    color: #1565c0;
+}
+
+.success {
+    background-color: #e8f5e9;
+    border-left-color: #4caf50;
+}
+
+.success p {
+    color: #2e7d32;
 }
 
 #app footer p {

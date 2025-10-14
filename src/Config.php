@@ -172,6 +172,11 @@ class Config
                 'LT' => 'automatiškai',
                 'EE' => 'automaatselt',
             ],
+            'notification announcement' => [
+                'LV' => 'Augšā labajā pusē eksperimentālā kārtā var norādīt robežu, pie kuras cena tiek atzīmēta kā dārga (sarkana). Ja ir ieteikumi uzlabojumiem, droši rakstiet uz <a href="mailto:apps@didnt.work">apps@didnt.work</a>.',
+                'LT' => 'Viršutiniame dešiniajame kampe eksperimentiniu būdu galite nurodyti ribą, nuo kurios kaina pažymima kaip brangi (raudona). Jei turite pasiūlymų patobulinimams, nedvejodami rašykite el. paštu <a href="mailto:apps@didnt.work">apps@didnt.work</a>.',
+                'EE' => 'Eksperimentaalselt saate paremas ülanurgas määrata piiri, mille juures hind märgitakse kalliks (punane). Kui teil on parandusettepanekuid, kirjutage julgelt aadressile <a href="mailto:apps@didnt.work">apps@didnt.work</a>.',
+            ],
         ];
     }
 }

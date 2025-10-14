@@ -85,8 +85,14 @@
     </header>
 
     <?php if (date('Y-m-d') < '2025-10-08') { ?>
-        <div class="notice">
+        <div class="notice info">
             <p><?=$locale->msg('15min notice')?></p>
+        </div>
+    <?php } ?>
+
+    <?php if (date('Y-m-d') < '2025-10-22') { ?>
+        <div class="notice success">
+            <p><?=$locale->msg('notification announcement')?></p>
         </div>
     <?php } ?>
 

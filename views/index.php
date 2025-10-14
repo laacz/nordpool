@@ -74,10 +74,10 @@
                         href="<?=$locale->route('/' . ($with_vat ? '?vat' : ''))?>"><?=$locale->msg('show 15min')?></a>)
             <?php } ?>
             <br/>
-            Krāsas
+            <?=$locale->msg('Brīdinājums')?>:
             <select id="heatmap-threshold">
-                <option value="0">automātiski</option>
-                <?php for ($threshold = 5; $threshold < 50; $threshold+=5) { ?>
+                <option value="0"><?=$locale->msg('automātiski')?></option>
+                <?php for ($threshold = 5; $threshold < 66; $threshold+=5) { ?>
                     <option value="<?=$threshold?>"><?=number_format($threshold/100, 2, '.', '')?>+€</option>
                 <?php } ?>
             </select>

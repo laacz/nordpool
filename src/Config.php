@@ -162,6 +162,16 @@ class Config
                 'LT' => '15min duomenys',
                 'EE' => '15min andmed',
             ],
+            'Brīdinājums' => [
+                'LV' => 'Brīdinājums',
+                'LT' => 'Įspėjimas',
+                'EE' => 'Hoiatus',
+            ],
+            'automātiski' => [
+                'LV' => 'automātiski',
+                'LT' => 'automatiškai',
+                'EE' => 'automaatselt',
+            ],
         ];
     }
 }

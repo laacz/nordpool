@@ -20,6 +20,12 @@
     <link rel="manifest" href="/<?=strtolower($country)?>/manifest<?=$request->getCurrentQueryString($with_vat, $resolution)?>"/>
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <title><?=$locale->msg('title')?></title>
+
+    <link rel="icon" type="image/png" href="/icon-dark.png" sizes="512x512" media="(prefers-color-scheme: dark)"/>
+    <link rel="icon" type="image/png" href="/icon-light.png" sizes="512x512" media="(prefers-color-scheme: light)"/>
+    <link rel="apple-touch-icon" type="image/png" href="/icon-dark.png" sizes="512x512" media="(prefers-color-scheme: dark)"/>
+    <link rel="apple-touch-icon" type="image/png" href="/icon-light.png" sizes="512x512" media="(prefers-color-scheme: light)"/>
+
     <link rel="alternate" type="application/rss+xml" title="nordpool.didnt.work RSS feed"
           href="/<?=strtolower($country)?>?rss"/>
     <link rel="preconnect" href="https://fonts.googleapis.com">

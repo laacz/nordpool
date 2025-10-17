@@ -34,4 +34,20 @@ class Request
     {
         return isset($this->get[$key]);
     }
+
+    public function getCurrentQueryString($vat = false, $resolution = 60): string
+    {
+        $args = [];
+        if ($vat) {
+            $args[] = 'vat';
+        }
+        if ($resolution === 60) {
+            $args[] = 'res=60';
+        }
+        if (empty($args)) {
+            return '';
+        }
+
+        return '?' . implode('&', $args);
+    }
 }

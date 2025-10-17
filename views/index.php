@@ -17,6 +17,7 @@
     <meta charset="UTF-8">
     <meta name="viewport"
           content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <link rel="manifest" href="/<?=strtolower($country)?>/manifest<?=$request->getCurrentQueryString($with_vat, $resolution)?>"/>
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <title><?=$locale->msg('title')?></title>
     <link rel="alternate" type="application/rss+xml" title="nordpool.didnt.work RSS feed"
@@ -83,7 +84,7 @@
             </select>
         </p>
     </header>
-
+<?=strtolower($country)?>/manifest<?=$request->getCurrentQueryString($with_vat, $resolution)?>
     <?php if (date('Y-m-d') < '2025-10-08') { ?>
         <div class="notice info">
             <p><?=$locale->msg('15min notice')?></p>

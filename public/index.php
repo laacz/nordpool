@@ -30,6 +30,55 @@ try {
         handleIndex($request, $params, $view);
     });
 
+    $router->get('{country}/manifest', function (Request $request, array $params) {
+        $countryConfig = Config::getCountries();
+        $translations = Config::getTranslations();
+
+        $country = strtoupper($params['country'] ?? 'lv');
+        if (!isset($countryConfig[$country])) {
+            $country = 'LV';
+        }
+
+        $locale = new AppLocale($countryConfig[$country], $translations);
+
+        $with_vat = $request->has('vat');
+        $resolution = $request->get('res') == '60' ? 60 : 15;
+
+        header('Content-Type: application/manifest+json; charset=utf-8');
+
+        $manifest = [
+            'name' => $locale->msg('app_name'),
+            'short_name' => $locale->msg('app_short_name'),
+            'description' => $locale->msg('app_description'),
+            'start_url' => '/' . strtolower($country) . $request->getCurrentQueryString($with_vat, $resolution),
+            'display' => 'standalone',
+            // 'background_color' => 'skyblue',
+            // 'theme_color' => 'skyblue',
+            'orientation' => 'portrait',
+            // 'scope' => '/' . strtolower($country),
+            'lang' => strtolower($locale->get('code')),
+            'icons' => [
+                ['src' => '/icons/icon-48x48.png',   'sizes' => '48x48',   'type' => 'image/png'],
+                ['src' => '/icons/icon-72x72.png',   'sizes' => '72x72',   'type' => 'image/png'],
+                ['src' => '/icons/icon-76x76.png',   'sizes' => '76x76',   'type' => 'image/png'],
+                ['src' => '/icons/icon-70x70.png',   'sizes' => '70x70',   'type' => 'image/png'],
+                ['src' => '/icons/icon-96x96.png',   'sizes' => '96x96',   'type' => 'image/png'],
+                ['src' => '/icons/icon-120x120.png', 'sizes' => '120x120', 'type' => 'image/png'],
+                ['src' => '/icons/icon-144x144.png', 'sizes' => '144x144', 'type' => 'image/png'],
+                ['src' => '/icons/icon-150x150.png', 'sizes' => '150x150', 'type' => 'image/png'],
+                ['src' => '/icons/icon-152x152.png', 'sizes' => '152x152', 'type' => 'image/png'],
+                ['src' => '/icons/icon-167x167.png', 'sizes' => '167x167', 'type' => 'image/png'],
+                ['src' => '/icons/icon-180x180.png', 'sizes' => '180x180', 'type' => 'image/png'],
+                ['src' => '/icons/icon-192x192.png', 'sizes' => '192x192', 'type' => 'image/png'],
+                ['src' => '/icons/icon-310x310.png', 'sizes' => '310x310', 'type' => 'image/png'],
+                ['src' => '/icons/icon-512x512.png', 'sizes' => '512x512', 'type' => 'image/png'],
+            ],
+        ];
+
+        header('Content-Type: application/manifest+json; charset=utf-8');
+        echo json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    });
+
     $router->get('{country}', function (Request $request, array $params) use ($view) {
         if ($request->has('rss')) {
             $country = strtolower($params['country'] ?? 'lv');
@@ -158,6 +207,8 @@ function handleIndex(Request $request, array $params, View $view): void
 
     $quarters_per_hour = $resolution == 15 ? 4 : 1;
 
+    header('Content-Type: text/html; charset=utf-8');
+
     // Render view
     $view->render('index', [
         'locale' => $locale,
@@ -177,6 +228,7 @@ function handleIndex(Request $request, array $params, View $view): void
         'tomorrow_max' => $tomorrow_max,
         'tomorrow_min' => $tomorrow_min,
         'quarters_per_hour' => $quarters_per_hour,
+        'request' => $request,
     ]);
 
     $html = ob_get_clean();

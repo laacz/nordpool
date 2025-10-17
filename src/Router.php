@@ -15,6 +15,7 @@ class Router
     public function dispatch(Request $request): void
     {
         $path = $request->path();
+        header('content-type: text/plain; charset=utf-8');
 
         foreach ($this->routes as $route) {
             $params = $this->match($route['pattern'], $path);

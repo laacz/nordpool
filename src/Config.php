@@ -183,9 +183,9 @@ class Config
                 'EE' => 'Nordpooli elektrihinnad',
             ],
             'app_short_name' => [
-                'LV' => 'Nordpool cenas',
-                'LT' => 'Nordpool kainos',
-                'EE' => 'Nordpool hinnad',
+                'LV' => 'Elektrības cenas',
+                'LT' => 'Elektros kainos',
+                'EE' => 'Elektrihinnad',
             ],
         ];
     }

@@ -113,9 +113,9 @@ class Config
                 'EE' => 'Kogume purki',
             ],
             'title' => [
-                'LV' => 'Nordpool elektrības cenas (day-ahead, hourly, LV)',
-                'LT' => 'Nordpool elektros kainos (day-ahead, hourly, LT)',
-                'EE' => 'Nordpool elektrihinnad (day-ahead, hourly, EE)',
+                'LV' => 'Nordpool elektrības biržas cenas šodienai un rītdienai',
+                'LT' => 'Nordpool elektros biržos kainos šiandienai ir rytoj',
+                'EE' => 'Nordpooli elektribörsi hinnad tänaseks ja homseks',
             ],
             'Šodien' => [
                 'LV' => 'Šodien',

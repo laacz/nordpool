@@ -31,6 +31,7 @@
           href="/<?=strtolower($country)?>?rss"/>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <meta name="description" content="<?=$locale->msg('meta description')?>">
     <link href="https://fonts.googleapis.com/css2?family=Fira+Sans:wght@100;400;700&display=swap" rel="stylesheet">
     <style>
         <?php $legendColors = $viewHelper->getLegendColors(); ?>

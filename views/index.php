@@ -45,6 +45,25 @@
             color: #fff;
         }
     </style>
+    <script>
+        // Theme initialization - MUST run before body renders to prevent flicker
+        (function() {
+            const storage = window.localStorage;
+            const savedTheme = storage.getItem('theme-preference');
+            const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+            let themeClass = 'light-mode';
+            if (savedTheme === 'dark') {
+                themeClass = 'dark-mode';
+            } else if (savedTheme === 'light') {
+                themeClass = 'light-mode';
+            } else if (systemPrefersDark) {
+                themeClass = 'dark-mode';
+            }
+
+            document.documentElement.className = themeClass;
+        })();
+    </script>
     <script src="/echarts.min.js"></script>
     <link rel="stylesheet" href="/style.css">
 </head>
@@ -55,17 +74,18 @@
 
     <header>
         <h1>
-            <svg id="logo" viewBox="0 0 1139 1139" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <svg id="logo" viewBox="100 100 950 950" xmlns="http://www.w3.org/2000/svg">
                 <style>
-                #bg, #cable-shadow { fill: #003352; }
+                #bg, #cable-shadow { fill: #fff; }
                 #bars rect { fill: #73e69b; }
-                #cable path{ fill: #fff; stroke: #fff; }
+                #cable path{ fill: #003352; stroke: #003352; }
 
-                @media(prefers-color-scheme: light) {
-                    #bg, #cable-shadow { fill: #73e69b; }
-                    #bars rect { fill: #003352; }
-                    #cable path{ fill: #fff; stroke: #fff; }
-                }
+                html.dark-mode #bg, html.dark-mode #cable-shadow,
+                body.dark-mode #bg, body.dark-mode #cable-shadow { fill: #003352; }
+                html.dark-mode #bars rect,
+                body.dark-mode #bars rect { fill: #73e69b; }
+                html.dark-mode #cable path,
+                body.dark-mode #cable path{ fill: #fff; stroke: #fff; }
                 </style>
                 <rect width="1139" height="1139" id="bg"/>
                 <g id="bars">
@@ -95,6 +115,24 @@
                             src="/<?=$config['code_lc']?>.svg" alt="<?=$config['name']?>" width="32"
                             height="32"/></a>
             <?php } ?>
+            <a href="#" id="theme-toggle" class="flag" aria-label="Toggle theme">
+                <svg class="theme-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <!-- Moon icon (default for light mode) -->
+                    <path class="moon-icon" d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <!-- Sun icon (hidden by default) -->
+                    <g class="sun-icon" style="display: none;">
+                        <circle cx="12" cy="12" r="5" fill="currentColor" stroke="currentColor" stroke-width="2"/>
+                        <line x1="12" y1="1" x2="12" y2="3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        <line x1="12" y1="21" x2="12" y2="23" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        <line x1="1" y1="12" x2="3" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        <line x1="21" y1="12" x2="23" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </g>
+                </svg>
+            </a>
             <br/>
             <?=$locale->msg('subtitle')?><br/>
             <?php if ($with_vat) { ?>
@@ -231,7 +269,7 @@
                         data-min="<?=$today_min?>"
                         data-max="<?=$today_max?>"
                         <?php if ($colspan > 1) { ?>colspan="<?=$colspan?>"<?php } ?>>
-                        <?=isset($value) ? $viewHelper->format($value) : '-'?>
+                        <?=isset($value) ? $viewHelper->format($value) : ''?>
                     </td>
                     <?php
                     $q = $next_q;
@@ -264,7 +302,7 @@
                         data-max="<?=$tomorrow_max?>"
                         <?php if ($colspan > 1) { ?>colspan="<?=$colspan?>"<?php } ?>
                         <?php if (!isset($value)) { ?>style="text-align: center;"<?php } ?>>
-                        <?=isset($value) ? $viewHelper->format($value) : '-'?>
+                        <?=isset($value) ? $viewHelper->format($value) : ''?>
                     </td>
                     <?php
                     $q = $next_q;
@@ -342,7 +380,7 @@
                             data-min="<?=$today_min?>"
                             data-max="<?=$today_max?>"
                             <?php if ($colspan > 1) { ?>colspan="<?=$colspan?>"<?php } ?>>
-                            <?=isset($value) ? $viewHelper->format($value) : '-'?>
+                            <?=isset($value) ? $viewHelper->format($value) : ''?>
                         </td>
                         <?php
                         $q = $next_q;
@@ -434,127 +472,169 @@
 
     <div id="chart"></div>
     <script>
+        // Apply theme to body as well (html already has it from head script)
+        (function initTheme() {
+            const themeClass = document.documentElement.className;
+            if (themeClass) {
+                document.body.classList.add(themeClass);
+            }
+        })();
+
         const chart = echarts.init(document.getElementById('chart'));
-        const option = {
-            animation: false,
-            renderer: 'svg',
-            legend: {
-                show: false
-            },
-            grid: {
-                top: 50,
-                left: 40,
-                right: 10,
-                bottom: 20
-            },
-            title: {
-                show: false,
-            },
-            tooltip: {
-                trigger: 'axis',
-                formatter: function (params) {
-                    let timeLabel = params[0].name;
-                    let value = parseFloat(params[0].value);
-                    let strValue = value.toString().padEnd(4, '0').substring(0, 4);
 
-                    strValue += '<small>';
-                    strValue += value.toString().substring(4).padEnd(2, '0');
-                    strValue += '</small> €/kWh'
+        // Function to get theme-aware chart options
+        function getChartOption(data) {
+            const isDark = document.body.classList.contains('dark-mode');
+            const textColor = isDark ? '#e8f4f8' : '#333';
+            const lineColor = isDark ? '#003a58' : '#ccc';
+            const maxColor = isDark ? '#7a0000' : '#a00';
+            const minColor = isDark ? '#006600' : '#0a0';
 
-                    let [hour, minute] = timeLabel.split(':').map(n => parseInt(n, 10));
-                    let endMinute = (minute + 15) % 60;
-                    let endHour = (minute + 15 >= 60) ? (hour + 1) % 24 : hour;
-
-                    return `
-                        ${timeLabel} - ${('' + endHour).padStart(2, '0')}:${('' + endMinute).padStart(2, '0')}<br/>
-                        ${strValue}
-                        `;
+            return {
+                animation: false,
+                renderer: 'svg',
+                legend: {
+                    show: false
                 },
-                axisPointer: {
-                    type: 'cross',
-                    snap: true,
+                grid: {
+                    top: 50,
+                    left: 40,
+                    right: 10,
+                    bottom: 20
                 },
-            },
-            xAxis: {
-                type: 'category',
-                data: <?= json_encode(array_values($legend)) ?>,
-                boundaryGap: false,
-                axisLabel: {
-                    formatter: function (value) {
-                        return value.split(':')[0];
+                title: {
+                    show: false,
+                },
+                tooltip: {
+                    trigger: 'axis',
+                    formatter: function (params) {
+                        let timeLabel = params[0].name;
+                        let value = parseFloat(params[0].value);
+                        let strValue = value.toString().padEnd(4, '0').substring(0, 4);
+
+                        strValue += '<small>';
+                        strValue += value.toString().substring(4).padEnd(2, '0');
+                        strValue += '</small> €/kWh'
+
+                        let [hour, minute] = timeLabel.split(':').map(n => parseInt(n, 10));
+                        let endMinute = (minute + 15) % 60;
+                        let endHour = (minute + 15 >= 60) ? (hour + 1) % 24 : hour;
+
+                        return `
+                            ${timeLabel} - ${('' + endHour).padStart(2, '0')}:${('' + endMinute).padStart(2, '0')}<br/>
+                            ${strValue}
+                            `;
                     },
-                    interval: function (index, value) {
-                        // Show label only when minutes are :00
-                        return value.endsWith(':00');
-                    }
-                },
-                splitLine: {
-                    show: true,
-                    interval: 0,
-                    lineStyle: {
-                        type: 'dashed',
+                    axisPointer: {
+                        type: 'cross',
+                        snap: true,
                     },
                 },
-            },
-            yAxis: {
-                type: 'value',
-                axisLabel: {
-                    formatter: function (value) {
-                        return parseFloat(value).toFixed(2)
-                    }
-                },
-            },
-            series: [
-                {
-                    name: '€/kWh',
-                    type: 'line',
-                    step: 'end',
-                    symbol: 'none',
-                    data: <?= json_encode(array_values($values['today'])) ?>,
-                    markPoint: {
-                        data: [
-                            {
-                                type: 'max',
-                                name: 'Max',
-                                symbolOffset: [0, -10],
-                                itemStyle: {
-                                    color: '#a00',
-                                }
-                            },
-                            {
-                                type: 'min',
-                                name: 'Min',
-                                symbolOffset: [0, 10],
-                                itemStyle: {
-                                    color: '#0a0',
-                                }
-                            }
-                        ],
-                        symbol: 'rect',
-                        symbolSize: [40, 15],
-                        label: {
-                            color: '#fff',
-                            formatter: function (value) {
-                                return (Math.round(parseFloat(value.value) * 100) / 100).toFixed(2)
-                            }
+                xAxis: {
+                    type: 'category',
+                    data: <?= json_encode(array_values($legend)) ?>,
+                    boundaryGap: false,
+                    axisLabel: {
+                        color: textColor,
+                        formatter: function (value) {
+                            return value.split(':')[0];
+                        },
+                        interval: function (index, value) {
+                            // Show label only when minutes are :00
+                            return value.endsWith(':00');
                         }
                     },
-                    markLine: {
-                        data: [{type: 'average', name: '<?= $locale->msg('Vidēji')?>'}],
+                    axisLine: {
+                        lineStyle: {
+                            color: lineColor
+                        }
+                    },
+                    splitLine: {
+                        show: true,
+                        interval: 0,
+                        lineStyle: {
+                            type: 'dashed',
+                            color: lineColor
+                        },
+                    },
+                },
+                yAxis: {
+                    type: 'value',
+                    axisLabel: {
+                        color: textColor,
+                        formatter: function (value) {
+                            return parseFloat(value).toFixed(2)
+                        }
+                    },
+                    axisLine: {
+                        lineStyle: {
+                            color: lineColor
+                        }
+                    },
+                    splitLine: {
+                        lineStyle: {
+                            color: lineColor
+                        }
+                    }
+                },
+                series: [
+                    {
+                        name: '€/kWh',
+                        type: 'line',
+                        step: 'end',
                         symbol: 'none',
-                        label: {
-                            show: true,
-                            position: "insideStartTop",
-                            backgroundColor: "rgba(74, 101, 186, .3)",
-                            padding: [3, 3],
-                            // shadowColor: "ff0000",
+                        data: data,
+                        lineStyle: {
+                            color: isDark ? '#4d9eff' : '#4a65ba'
+                        },
+                        markPoint: {
+                            data: [
+                                {
+                                    type: 'max',
+                                    name: 'Max',
+                                    symbolOffset: [0, -10],
+                                    itemStyle: {
+                                        color: maxColor,
+                                    }
+                                },
+                                {
+                                    type: 'min',
+                                    name: 'Min',
+                                    symbolOffset: [0, 10],
+                                    itemStyle: {
+                                        color: minColor,
+                                    }
+                                }
+                            ],
+                            symbol: 'rect',
+                            symbolSize: [40, 15],
+                            label: {
+                                color: '#fff',
+                                formatter: function (value) {
+                                    return (Math.round(parseFloat(value.value) * 100) / 100).toFixed(2)
+                                }
+                            }
+                        },
+                        markLine: {
+                            data: [{type: 'average', name: '<?= $locale->msg('Vidēji')?>'}],
+                            symbol: 'none',
+                            lineStyle: {
+                                color: isDark ? '#4d9eff' : '#4a65ba'
+                            },
+                            label: {
+                                show: true,
+                                position: "insideStartTop",
+                                backgroundColor: isDark ? "rgba(77, 158, 255, .3)" : "rgba(74, 101, 186, .3)",
+                                color: textColor,
+                                padding: [3, 3],
+                            }
                         }
-                    }
-                },
-            ]
-        };
+                    },
+                ]
+            };
+        }
 
-        chart.setOption(option);
+        chart.setOption(getChartOption(<?= json_encode(array_values($values['today'])) ?>));
 
         const dataset = {
             'today': <?= json_encode(array_values($values['today'])) ?>,
@@ -589,19 +669,33 @@
             const storage = window.localStorage;
             const heatmapThresholdSelect = document.getElementById('heatmap-threshold');
 
-            // Color gradient configuration (matches PHP ViewHelper)
-            const percentColors = [
+            // Color gradient configuration - light theme colors
+            const percentColorsLight = [
                 {pct: 0.0, color: {r: 0x00, g: 0x88, b: 0x00}},
                 {pct: 0.5, color: {r: 0xAA, g: 0xAA, b: 0x00}},
                 {pct: 1.0, color: {r: 0xAA, g: 0x00, b: 0x00}}
             ];
 
+            // Color gradient configuration - dark theme colors (darker/muted)
+            const percentColorsDark = [
+                {pct: 0.0, color: {r: 0x00, g: 0x66, b: 0x00}},  // Darker green
+                {pct: 0.5, color: {r: 0x7a, g: 0x66, b: 0x00}},  // Muted yellow
+                {pct: 1.0, color: {r: 0x7a, g: 0x00, b: 0x00}}   // Darker red
+            ];
+
+            // Get current color scheme based on theme
+            function getPercentColors() {
+                const isDark = document.body.classList.contains('dark-mode');
+                return isDark ? percentColorsDark : percentColorsLight;
+            }
+
             // Port of PHP getColorPercentage function
             function getColorPercentage(value, min, max) {
                 if (isNaN(value)) {
-                    return '#fff';
+                    return 'transparent';
                 }
 
+                const percentColors = getPercentColors();
                 let pct = (max - min) === 0 ? 0 : (value - min) / (max - min);
                 // Clamp percentage to [0, 1] range to handle threshold overrides
                 pct = Math.max(0, Math.min(1, pct));
@@ -632,20 +726,21 @@
             // Apply colors to all price cells
             function applyColors() {
                 const threshold = parseInt(heatmapThresholdSelect.value, 10);
+                const isDark = document.body.classList.contains('dark-mode');
 
                 document.querySelectorAll('td.price').forEach(cell => {
                     const value = parseFloat(cell.getAttribute('data-value'));
 
                     let color;
                     if (threshold > 0) {
-                        // binary coloring
+                        // binary coloring with theme-aware colors
                         const thresholdValue = threshold / 100;
                         if (isNaN(value)) {
                             color = '#fff';
                         } else if (value < thresholdValue) {
-                            color = 'rgb(0,136,0)'; // Green
+                            color = isDark ? 'rgb(0,102,0)' : 'rgb(0,136,0)'; // Green
                         } else {
-                            color = 'rgb(170,0,0)'; // Red
+                            color = isDark ? 'rgb(122,0,0)' : 'rgb(170,0,0)'; // Red
                         }
                     } else {
                         // gradient coloring
@@ -734,11 +829,7 @@
             document.querySelectorAll('#chart-selector a').forEach(element => element.addEventListener('click', (e) => {
                 e.preventDefault();
                 const day = e.target.dataset.day;
-                chart.setOption({
-                    series: [{
-                        data: dataset[day],
-                    }]
-                });
+                chart.setOption(getChartOption(dataset[day]));
                 document.querySelectorAll('#chart-selector a').forEach((el) => {
                     el.removeAttribute('data-current');
                 })
@@ -758,17 +849,58 @@
                     }
                 })
 
-                chart.setOption({
-                    series: [{
-                        data: dataset[day],
-                    }]
-                });
+                chart.setOption(getChartOption(dataset[day]));
 
                 document.querySelectorAll('#mobile-selector a').forEach((el) => {
                     el.removeAttribute('data-current');
                 })
                 e.target.setAttribute('data-current', true);
             }))
+
+            // Theme toggle functionality
+            const themeToggle = document.getElementById('theme-toggle');
+            const moonIcon = themeToggle.querySelector('.moon-icon');
+            const sunIcon = themeToggle.querySelector('.sun-icon');
+
+            function updateThemeIcon() {
+                const isDark = document.body.classList.contains('dark-mode');
+                if (isDark) {
+                    // Show sun icon (to switch to light mode)
+                    moonIcon.style.display = 'none';
+                    sunIcon.style.display = 'block';
+                } else {
+                    // Show moon icon (to switch to dark mode)
+                    moonIcon.style.display = 'block';
+                    sunIcon.style.display = 'none';
+                }
+            }
+
+            // Set initial icon
+            updateThemeIcon();
+
+            themeToggle.addEventListener('click', (e) => {
+                e.preventDefault();
+                const isDark = document.body.classList.contains('dark-mode');
+
+                if (isDark) {
+                    // Switch to light mode
+                    document.documentElement.className = 'light-mode';
+                    document.body.className = 'light-mode';
+                    storage.setItem('theme-preference', 'light');
+                } else {
+                    // Switch to dark mode
+                    document.documentElement.className = 'dark-mode';
+                    document.body.className = 'dark-mode';
+                    storage.setItem('theme-preference', 'dark');
+                }
+
+                updateThemeIcon();
+                applyColors(); // Reapply heatmap colors for new theme
+
+                // Update chart with current data - use notMerge to force full redraw
+                const currentData = chart.getOption().series[0].data;
+                chart.setOption(getChartOption(currentData), { notMerge: true });
+            });
         })
     </script>
 </div>

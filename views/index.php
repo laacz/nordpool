@@ -65,7 +65,7 @@
         })();
     </script>
     <script src="/echarts.min.js"></script>
-    <link rel="stylesheet" href="/style.css?<?=crc32(file_get_contents(__DIR__ . '/../style.css'))?>">
+    <link rel="stylesheet" href="/style.css?<?=crc32(file_get_contents(__DIR__ . '/../public/style.css'))?>">
 </head>
 
 <body<?=$resolution == 60 ? ' class="res-60"' : ''?>>

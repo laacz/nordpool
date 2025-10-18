@@ -5,3 +5,5 @@ public/*.csv
 cache
 tmp
 vendor/
+.DS_Store
+

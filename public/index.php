@@ -58,7 +58,7 @@ try {
             // 'scope' => '/' . strtolower($country),
             'lang' => strtolower($locale->get('code')),
             'icons' => [
-                ['src' => '/icon-dark.png', 'sizes' => '512x512', 'type' => 'image/png'],
+                ['src' => '/favicon.svg', 'type' => 'image/svg+xml'],
             ],
         ];
 

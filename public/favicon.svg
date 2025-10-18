@@ -4,7 +4,7 @@
         #bars rect { fill: #73e69b; }
         #cable path{ fill: #fff; stroke: #fff; }
 
-        (prefers-color-scheme: light) {
+        @media (prefers-color-scheme: light) {
             #bg, #cable-shadow { fill: #73e69b; }
             #bars rect { fill: #003352; }
             #cable path{ fill: #fff; stroke: #fff; }

@@ -17,12 +17,13 @@
     <meta charset="UTF-8">
     <meta name="viewport"
           content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
-    <link rel="manifest" href="/<?=strtolower($country)?>/manifest<?=$request->getCurrentQueryString($with_vat, $resolution)?>"/>
+    <link rel="manifest"
+          href="/<?=strtolower($country)?>/manifest<?=$request->getCurrentQueryString($with_vat, $resolution)?>"/>
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <title><?=$locale->msg('title')?></title>
 
-    <link rel="icon" type="image/svg+xml" href="/favicon-dark.svg" media="(prefers-color-schema: dark)"/>
-    <link rel="icon" type="image/svg+xml" href="/favicon-light.svg" media="(prefers-color-schema: light)"/>
+    <link rel="icon" type="image/svg+xml" href="/favicon-dark.svg" media="(prefers-color-scheme: dark)"/>
+    <link rel="icon" type="image/svg+xml" href="/favicon-light.svg" media="(prefers-color-scheme: light)"/>
     <link rel="apple-touch-icon" type="image/svg+xml" href="/favicon-dark.svg" media="(prefers-color-scheme: dark)"/>
     <link rel="apple-touch-icon" type="image/svg+xml" href="/favicon-light.svg" media="(prefers-color-scheme: light)"/>
 
@@ -43,7 +44,6 @@
             background-color: rgb(<?=$legendColors[2]['color']['r']?>, <?=$legendColors[2]['color']['g']?>, <?=$legendColors[2]['color']['b']?>);
             color: #fff;
         }
-
     </style>
     <script src="/echarts.min.js"></script>
     <link rel="stylesheet" href="/style.css">
@@ -55,7 +55,39 @@
 
     <header>
         <h1>
-            🔌🏷️ <br/>€/kWh
+            <svg id="logo" viewBox="0 0 1139 1139" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <style>
+                #bg, #cable-shadow { fill: #003352; }
+                #bars rect { fill: #73e69b; }
+                #cable path{ fill: #fff; stroke: #fff; }
+
+                @media(prefers-color-scheme: light) {
+                    #bg, #cable-shadow { fill: #73e69b; }
+                    #bars rect { fill: #003352; }
+                    #cable path{ fill: #fff; stroke: #fff; }
+                }
+                </style>
+                <rect width="1139" height="1139" id="bg"/>
+                <g id="bars">
+                    <rect x="230" y="588" width="139" height="235"/>
+                    <rect x="420" y="454" width="139" height="369"/>
+                    <rect x="610" y="318" width="139" height="505"/>
+                </g>
+
+                <path d="M120 807.5L301 717.5L490 787.5L841 579V532L490 740.5L301 670.5L120 760.5V807.5Z"
+                      id="cable-shadow"/>
+                <g id="cable">
+                    <!-- cable -->
+                    <path d="M120 762.5L301 672.5L490 742.5L841 534V487L490 695.5L301 625.5L120 715.5V762.5Z"/>
+                    <!-- plug -->
+                    <g>
+                        <path d="M978.001 550C966.477 557.452 941.844 574.812 928.346 577.286C914.848 579.761 900.994 579.553 887.577 576.674C874.159 573.794 861.44 568.301 850.145 560.506C838.851 552.711 829.202 542.768 821.75 531.245C814.298 519.721 809.189 506.842 806.714 493.344C804.24 479.846 804.448 465.993 807.327 452.575C810.206 439.157 815.7 426.438 823.495 415.144C831.289 403.849 859.976 388.452 871.5 381L926.5 468.5L978.001 550Z"
+                        />
+                        <path d="M947.5 504L1018.5 460M947.5 504L1018.5 460" stroke-width="35" stroke-linecap="round"/>
+                        <path d="M898 430L969 386M898 430L969 386" stroke-width="35" stroke-linecap="round"/>
+                    </g>
+                </g>
+            </svg>
         </h1>
         <p>
             <?php foreach ($countryConfig as $code => $config) { ?>
@@ -84,14 +116,14 @@
             <?=$locale->msg('Brīdinājums')?>:
             <select id="heatmap-threshold">
                 <option value="0"><?=$locale->msg('automātiski')?></option>
-                <?php for ($threshold = 5; $threshold < 66; $threshold+=5) { ?>
-                    <option value="<?=$threshold?>"><?=number_format($threshold/100, 2, '.', '')?>+€</option>
+                <?php for ($threshold = 5; $threshold < 66; $threshold += 5) { ?>
+                    <option value="<?=$threshold?>"><?=number_format($threshold / 100, 2, '.', '')?>+€</option>
                 <?php } ?>
             </select>
         </p>
     </header>
-<?=strtolower($country)?>/manifest<?=$request->getCurrentQueryString($with_vat, $resolution)?>
-    <?php if (date('Y-m-d') < '2025-10-08') { ?>
+
+        <?php if (date('Y-m-d') < '2025-10-08') { ?>
         <div class="notice info">
             <p><?=$locale->msg('15min notice')?></p>
         </div>
@@ -566,7 +598,7 @@
 
             // Port of PHP getColorPercentage function
             function getColorPercentage(value, min, max) {
-                if (value === -9999) {
+                if (isNaN(value)) {
                     return '#fff';
                 }
 
@@ -607,7 +639,7 @@
                     let color;
                     if (threshold > 0) {
                         // binary coloring
-                        const thresholdValue = threshold / 100; 
+                        const thresholdValue = threshold / 100;
                         if (isNaN(value)) {
                             color = '#fff';
                         } else if (value < thresholdValue) {

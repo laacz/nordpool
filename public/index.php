@@ -1,6 +1,7 @@
 <?php
 
 const DB_PATH = __DIR__ . '/../nordpool.db';
+const CACHE_DISABLED = true;
 
 $ret = require 'functions.php';
 if (!$ret) {
@@ -146,7 +147,7 @@ function handleIndex(Request $request, array $params, View $view): void
     $mtime = stat(DB_PATH)['mtime'] ?? 0;
     $cmtime = Cache::get('last_db_mtime', 0);
 
-    if ($cmtime === 0 || $mtime === 0 || (int)$mtime !== (int)$cmtime || $request->has('purge')) {
+    if (CACHE_DISABLED || $cmtime === 0 || $mtime === 0 || (int)$mtime !== (int)$cmtime || $request->has('purge')) {
         Cache::clear();
         Cache::set('last_db_mtime', $mtime);
     }

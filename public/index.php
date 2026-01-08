@@ -139,9 +139,9 @@ function handleIndex(Request $request, array $params, View $view): void
     $vat = (float)$locale->get('vat');
 
     $tz_local = new DateTimeZone($locale->get('timezone'));
-    $local_start = new DateTimeImmutable('today', $tz_local);
-    $local_tomorrow_end = $local_start->modify('+2 day');
     $current_time = new DateTimeImmutable($request->get('now', 'now'), $tz_local);
+    $local_start = $current_time->setTime(0, 0, 0);
+    $local_tomorrow_end = $local_start->modify('+2 day');
 
     // Handle cache invalidation
     $mtime = stat(DB_PATH)['mtime'] ?? 0;

@@ -193,6 +193,10 @@ function handleIndex(Request $request, array $params, View $view): void
     $tomorrow_max = $tomorrow_flat ? max($tomorrow_flat) : 0;
     $tomorrow_min = $tomorrow_flat ? min($tomorrow_flat) : 0;
 
+    $all_flat = array_merge($today_flat, $tomorrow_flat);
+    $combined_max = $all_flat ? max($all_flat) : 0;
+    $combined_min = $all_flat ? min($all_flat) : 0;
+
     $quarters_per_hour = $resolution == 15 ? 4 : 1;
 
     header('Content-Type: text/html; charset=utf-8');
@@ -215,6 +219,8 @@ function handleIndex(Request $request, array $params, View $view): void
         'today_min' => $today_min,
         'tomorrow_max' => $tomorrow_max,
         'tomorrow_min' => $tomorrow_min,
+        'combined_max' => $combined_max,
+        'combined_min' => $combined_min,
         'quarters_per_hour' => $quarters_per_hour,
         'request' => $request,
     ]);

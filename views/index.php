@@ -267,8 +267,8 @@
                         data-start="<?=$current_time->format('Y-m-d')?> <?=sprintf('%02d:%02d', $hour, $q * 15)?>"
                         data-end="<?=$current_time->format('Y-m-d')?> <?=sprintf('%02d:%02d', $hour, $next_q * 15)?>"
                         data-value="<?=$value ?? ''?>"
-                        data-min="<?=$today_min?>"
-                        data-max="<?=$today_max?>"
+                        data-min="<?=$combined_min?>"
+                        data-max="<?=$combined_max?>"
                         <?php if ($colspan > 1) { ?>colspan="<?=$colspan?>"<?php } ?>>
                         <?=isset($value) ? $viewHelper->format($value) : ''?>
                     </td>
@@ -299,8 +299,8 @@
                         data-start="<?=$current_time->modify('+1 day')->format('Y-m-d')?> <?=sprintf('%02d:%02d', $hour, $q * 15)?>"
                         data-end="<?=$current_time->format('Y-m-d')?> <?=sprintf('%02d:%02d', $hour, $next_q * 15)?>"
                         data-value="<?=$value ?? ''?>"
-                        data-min="<?=$tomorrow_min?>"
-                        data-max="<?=$tomorrow_max?>"
+                        data-min="<?=$combined_min?>"
+                        data-max="<?=$combined_max?>"
                         <?php if ($colspan > 1) { ?>colspan="<?=$colspan?>"<?php } ?>
                         <?php if (!isset($value)) { ?>style="text-align: center;"<?php } ?>>
                         <?=isset($value) ? $viewHelper->format($value) : ''?>
@@ -378,8 +378,8 @@
                             data-start="<?=$current_time->format('Y-m-d')?> <?=sprintf('%02d:%02d', $hour, $q * 15)?>"
                             data-end="<?=$current_time->format('Y-m-d')?> <?=sprintf('%02d:%02d', $hour, $next_q * 15)?>"
                             data-value="<?=$value ?? ''?>"
-                            data-min="<?=$today_min?>"
-                            data-max="<?=$today_max?>"
+                            data-min="<?=$combined_min?>"
+                            data-max="<?=$combined_max?>"
                             <?php if ($colspan > 1) { ?>colspan="<?=$colspan?>"<?php } ?>>
                             <?=isset($value) ? $viewHelper->format($value) : ''?>
                         </td>
@@ -442,8 +442,8 @@
                             data-start="<?=$current_time->modify('+1 day')->format('Y-m-d')?> <?=sprintf('%02d:%02d', $hour, $q * 15)?>"
                             data-end="<?=$current_time->format('Y-m-d')?> <?=sprintf('%02d:%02d', $hour, $next_q * 15)?>"
                             data-value="<?=$value ?? ''?>"
-                            data-min="<?=$tomorrow_min?>"
-                            data-max="<?=$tomorrow_max?>"
+                            data-min="<?=$combined_min?>"
+                            data-max="<?=$combined_max?>"
                             <?php if ($colspan > 1) { ?>colspan="<?=$colspan?>"<?php } ?>
                             <?php if (!isset($value)) { ?>style="text-align: center;"<?php } ?>>
                             <?=isset($value) ? $viewHelper->format($value) : '-'?>

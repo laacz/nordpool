@@ -734,14 +734,16 @@
 
                     let color;
                     if (threshold > 0) {
-                        // binary coloring with theme-aware colors
+                        // gradient coloring up to threshold, max red above
                         const thresholdValue = threshold / 100;
                         if (isNaN(value)) {
                             color = '#fff';
-                        } else if (value < thresholdValue) {
-                            color = isDark ? 'rgb(0,102,0)' : 'rgb(0,136,0)'; // Green
+                        } else if (value >= thresholdValue) {
+                            // at or above threshold: max red
+                            color = isDark ? 'rgb(122,0,0)' : 'rgb(170,0,0)';
                         } else {
-                            color = isDark ? 'rgb(122,0,0)' : 'rgb(170,0,0)'; // Red
+                            // below threshold: gradient from 0 to threshold
+                            color = getColorPercentage(value, 0, thresholdValue);
                         }
                     } else {
                         // gradient coloring

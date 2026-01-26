@@ -152,6 +152,12 @@
                         href="<?=$locale->route('/' . ($with_vat ? '?vat' : ''))?>"><?=$locale->msg('show 15min')?></a>)
             <?php } ?>
             <br/>
+            <span id="coloring-mode-wrapper" style="display: none;">
+                <!-- <?=$locale->msg('Krāsojums')?>: -->
+                <label><input type="radio" name="coloring-mode" value="gradient" checked> <?=$locale->msg('Gradients')?></label>
+                <label><input type="radio" name="coloring-mode" value="threshold"> <?=$locale->msg('Slieksnis')?></label>
+            </span>
+            <span class="muted">|</span>
             <?=$locale->msg('Brīdinājums')?>:
             <select id="heatmap-threshold">
                 <option value="0"><?=$locale->msg('automātiski')?></option>
@@ -727,6 +733,7 @@
             // Apply colors to all price cells
             function applyColors() {
                 const threshold = parseInt(heatmapThresholdSelect.value, 10);
+                const coloringMode = document.querySelector('input[name="coloring-mode"]:checked').value;
                 const isDark = document.body.classList.contains('dark-mode');
 
                 document.querySelectorAll('td.price').forEach(cell => {
@@ -734,19 +741,26 @@
 
                     let color;
                     if (threshold > 0) {
-                        // gradient coloring up to threshold, max red above
                         const thresholdValue = threshold / 100;
                         if (isNaN(value)) {
                             color = 'transparent';
-                        } else if (value >= thresholdValue) {
-                            // at or above threshold: max red
-                            color = isDark ? 'rgb(122,0,0)' : 'rgb(170,0,0)';
+                        } else if (coloringMode === 'threshold') {
+                            // Hard color: green below threshold, red at/above
+                            color = value >= thresholdValue
+                                ? (isDark ? 'rgb(122,0,0)' : 'rgb(170,0,0)')  // red
+                                : (isDark ? 'rgb(0,102,0)' : 'rgb(0,136,0)'); // green
                         } else {
-                            // below threshold: gradient from 0 to threshold
-                            color = getColorPercentage(value, 0, thresholdValue);
+                            // Gradient mode: gradient coloring up to threshold, max red above
+                            if (value >= thresholdValue) {
+                                // at or above threshold: max red
+                                color = isDark ? 'rgb(122,0,0)' : 'rgb(170,0,0)';
+                            } else {
+                                // below threshold: gradient from 0 to threshold
+                                color = getColorPercentage(value, 0, thresholdValue);
+                            }
                         }
                     } else {
-                        // gradient coloring
+                        // gradient coloring (automatic mode)
                         const min = parseFloat(cell.getAttribute('data-min'));
                         const max = parseFloat(cell.getAttribute('data-max'));
                         color = getColorPercentage(value, min, max);
@@ -756,19 +770,44 @@
                 });
             }
 
+            const coloringModeWrapper = document.getElementById('coloring-mode-wrapper');
+            const coloringModeRadios = document.querySelectorAll('input[name="coloring-mode"]');
+
+            // Show/hide coloring mode based on threshold
+            function updateColoringModeVisibility() {
+                const threshold = parseInt(heatmapThresholdSelect.value, 10);
+                coloringModeWrapper.style.display = threshold > 0 ? 'inline' : 'none';
+            }
+
             heatmapThresholdSelect.addEventListener('change', (e) => {
                 const value = parseInt(e.target.value, 10);
                 if (!isNaN(value)) {
                     storage.setItem('heatmap-threshold', value.toString());
+                    updateColoringModeVisibility();
                     applyColors();
                 }
             });
 
+            coloringModeRadios.forEach(radio => {
+                radio.addEventListener('change', (e) => {
+                    storage.setItem('coloring-mode', e.target.value);
+                    applyColors();
+                });
+            });
+
+            // Restore saved values
             const savedThreshold = parseInt(storage.getItem('heatmap-threshold'), 10);
             if (!isNaN(savedThreshold)) {
                 heatmapThresholdSelect.value = savedThreshold.toString();
             }
 
+            const savedColoringMode = storage.getItem('coloring-mode');
+            if (savedColoringMode) {
+                const radio = document.querySelector(`input[name="coloring-mode"][value="${savedColoringMode}"]`);
+                if (radio) radio.checked = true;
+            }
+
+            updateColoringModeVisibility();
             applyColors();
 
             // now let's highlight the hour and quarter continuously

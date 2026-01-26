@@ -105,6 +105,11 @@ footer {
     margin-top: 2em;
 }
 
+.muted {
+    color: var(--text-color);
+    opacity: 0.5;
+}
+
 .notice {
     border-left-width: 4px;
     border-left-style: solid;

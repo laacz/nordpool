@@ -187,6 +187,21 @@ class Config
                 'LT' => 'Elektros kainos',
                 'EE' => 'Elektrihinnad',
             ],
+            'Krāsojums' => [
+                'LV' => 'Krāsojums',
+                'LT' => 'Spalvinimas',
+                'EE' => 'Värvimine',
+            ],
+            'Gradients' => [
+                'LV' => 'Gradients',
+                'LT' => 'Gradientas',
+                'EE' => 'Gradient',
+            ],
+            'Slieksnis' => [
+                'LV' => 'Slieksnis',
+                'LT' => 'Slenkstis',
+                'EE' => 'Lävi',
+            ],
         ];
     }
 }

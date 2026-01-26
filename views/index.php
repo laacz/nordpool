@@ -153,11 +153,10 @@
             <?php } ?>
             <br/>
             <span id="coloring-mode-wrapper" style="display: none;">
-                <!-- <?=$locale->msg('Krāsojums')?>: -->
                 <label><input type="radio" name="coloring-mode" value="gradient" checked> <?=$locale->msg('Gradients')?></label>
                 <label><input type="radio" name="coloring-mode" value="threshold"> <?=$locale->msg('Slieksnis')?></label>
+                <span class="muted">|</span>
             </span>
-            <span class="muted">|</span>
             <?=$locale->msg('Brīdinājums')?>:
             <select id="heatmap-threshold">
                 <option value="0"><?=$locale->msg('automātiski')?></option>

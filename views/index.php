@@ -737,7 +737,7 @@
                         // gradient coloring up to threshold, max red above
                         const thresholdValue = threshold / 100;
                         if (isNaN(value)) {
-                            color = '#fff';
+                            color = 'transparent';
                         } else if (value >= thresholdValue) {
                             // at or above threshold: max red
                             color = isDark ? 'rgb(122,0,0)' : 'rgb(170,0,0)';
